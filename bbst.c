@@ -334,7 +334,7 @@ avl_flat_tuple_t* avl_fill_arr(avl_node_t *node, avl_flat_tuple_t *arr) {
     return arr;
 }
 
-static size_t compare(const avl_flat_tuple_t *a, const avl_flat_tuple_t *b)
+static ssize_t compare(const avl_flat_tuple_t *a, const avl_flat_tuple_t *b)
 {
     return (a->key - b->key);
 }

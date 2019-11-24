@@ -186,7 +186,6 @@ int coal_gen_phdist(phdist_t **phdist, size_t state_size) {
     cols[0] = NULL;
 
     vec_entry_t n = (vec_entry_t)state_size;
- //   size_t nSt = partitions(state_size);
 
     size_t SIZE = sizeof(vec_entry_t) * n;
     vec_nmemb = state_size;
@@ -222,7 +221,6 @@ int coal_gen_phdist(phdist_t **phdist, size_t state_size) {
         }
     }*/
 
-
     bst_node_t *BST = bst_init(initial, 0);
 
     queue_enqueue(&queue, BST);
@@ -246,7 +244,7 @@ int coal_gen_phdist(phdist_t **phdist, size_t state_size) {
 
         for (vec_entry_t i = 0; i < n; i++) {
             for (vec_entry_t j = i; j < n; j++) {
-                if ((i == j && v[i] >= 2) || (i != j && v[i] > 0 && v[j] > 0)) {
+                if (((i == j && v[i] >= 2) || (i != j && v[i] > 0 && v[j] > 0))) {
                     ssize_t t = i == j ? v[i]*(v[i]-1)/2 : v[i]*v[j];
 
                     v[i]--;
@@ -288,7 +286,7 @@ int coal_gen_phdist(phdist_t **phdist, size_t state_size) {
                     v[j]++;
                     v[(i + j + 2) - 1]--;
 
-                    while (myidx >= avl_node_arr_len || idx >= avl_node_arr_len) {
+                    while (myidx >= avl_node_arr_len - 1 || idx >= avl_node_arr_len - 1) {
                         // TODO: Failure
                         rows = realloc(rows, sizeof(avl_node_t*)*avl_node_arr_len*2);
                         cols = realloc(cols, sizeof(avl_node_t*)*avl_node_arr_len*2);
@@ -327,7 +325,15 @@ int coal_gen_phdist(phdist_t **phdist, size_t state_size) {
 
     // TODO free some more
 
-    //TODO: Add final row
+    if (avl_insert_or_inc(&(rows[n_rows]), n_rows, -1)) {
+        return 1;
+    }
+
+    if (avl_insert_or_inc(&(cols[n_rows]), n_rows, -1)) {
+        return 1;
+    }
+
+    n_rows++;
 
     ret:
     *phdist = malloc(sizeof(phdist_t));
@@ -346,8 +352,9 @@ int coal_gen_phdist(phdist_t **phdist, size_t state_size) {
         avl_flatten(&((*phdist)->si_mat->cols[i]), &rn, cols[i]);
     }
 
-    // TODO: Use normal matrix for this
-    (*phdist)->rw_mat = malloc(sizeof(mat_t));
+    (*phdist)->rw_arr = StSpM;
+    (*phdist)->n_rw_rows = ri;
+    (*phdist)->n_rw_cols = state_size;
 
     return 0;
 }
