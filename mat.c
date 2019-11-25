@@ -28,8 +28,10 @@ int mat_mult(mat_t **out, mat_t *left, mat_t *right) {
                 }
             }
 
-            avl_insert_or_inc(&(rows[r]), c, res);
-            avl_insert_or_inc(&(cols[c]), r, res);
+            if (res != 0) {
+                avl_insert_or_inc(&(rows[r]), c, res);
+                avl_insert_or_inc(&(cols[c]), r, res);
+            }
         }
     }
 

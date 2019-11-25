@@ -1,6 +1,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <stdio.h>
 #include <math.h>
 #include "coal.h"
 #include "bbst.h"
@@ -133,21 +134,25 @@ static bool bst_find_or_parent(bst_node_t **out, bst_node_t *node, vec_entry_t *
     return false;
 }
 
-typedef bst_node_t* queue_entry_t;
 
 struct queue {
-    queue_entry_t *queue;
-    queue_entry_t *head;
-    queue_entry_t *tail;
+    bst_node_t **queue;
+    bst_node_t **head;
+    bst_node_t **tail;
+    size_t size;
+    bst_node_t **bound;
 };
 
 static int queue_init(struct queue *queue, size_t nmemb) {
-    if ((queue->queue = malloc(sizeof(queue_entry_t)*nmemb)) == NULL) {
+    if ((queue->queue = malloc(sizeof(bst_node_t*)*nmemb)) == NULL) {
         return 1;
     }
 
     queue->head = queue->queue;
-    queue->tail = queue->queue - 1;
+    queue->tail = queue->queue;
+    queue->size = nmemb;
+    queue->bound = queue->queue + queue->size;
+    memset(queue->queue, 0, queue->size *sizeof(bst_node_t*));
 
     return 0;
 }
@@ -156,21 +161,153 @@ static int queue_destroy(struct queue *queue) {
     free(queue->queue);
 }
 
-static void queue_enqueue(struct queue *queue, queue_entry_t entry) {
-    queue->tail++;
-    *(queue->tail) = entry;
+static void queue_print(struct queue *queue) {
+    fprintf(stderr, "Queue: ");
+
+    bst_node_t **i = queue->queue;// queue->head;
+    size_t j = 0;
+    //while (i != queue->tail) {
+    while (i < queue->queue + queue->size) {
+        if (*i != NULL) {
+            if (i == queue->head) {
+                fprintf(stderr, "h%zu, ", (*i)->entry);
+            } else if (i == queue->tail) {
+                fprintf(stderr, "t%zu, ", (*i)->entry);
+            } else {
+                fprintf(stderr, "%zu, ", (*i)->entry);
+            }
+        } else {
+            if (i == queue->head) {
+                fprintf(stderr, "h_, ");
+            } else if (i == queue->tail) {
+                fprintf(stderr, "t_, ");
+            } else {
+                fprintf(stderr, "_, ");
+            }
+        }
+
+        i++;
+        j++;
+
+        //if (i >= queue->queue + queue->size) {
+        //    i = queue->queue;
+        //}
+    }
+
+    fprintf(stderr, "\n");
 }
 
-static queue_entry_t queue_dequeue(struct queue *queue) {
-    queue_entry_t entry = *(queue->head);
+static void queue_enqueue(struct queue *queue, bst_node_t *entry) {
+    //fprintf(stderr, "Enquing entry %zu. Current head %zu, current tail %zu. Size %zu\n", entry->entry, queue->head - queue->queue, queue->tail - queue->queue, queue->size);
+
+    *(queue->tail) = entry;
+
+    queue->tail++;
+
+    if (queue->tail == queue->bound) {
+        //fprintf(stderr, "Tail outside bounds");
+        queue->tail = queue->queue;
+    }
+
+    //fprintf(stderr, "After: Current head %zu, current tail %zu. Size %zu\n", queue->head - queue->queue, queue->tail - queue->queue, queue->size);
+
+    if (queue->tail == queue->head) {
+        //fprintf(stderr, "Resizing: Current head %zu, current tail %zu. Size %zu\n", queue->head - queue->queue, queue->tail - queue->queue, queue->size);
+        size_t head_dist = queue->size - (queue->head - queue->queue);
+        size_t head_offset = queue->head - queue->queue;
+        size_t tail_offset = queue->tail - queue->queue;
+        queue->queue = realloc(queue->queue, queue->size * 2 *sizeof(bst_node_t**));
+        //memset(queue->queue + queue->size, 0, queue->size*sizeof(bst_node_t**));
+
+        /*for (size_t i = 0; i < queue->size*2; i++) {
+            fprintf(stderr, "%p, ", queue->queue + i);
+        }
+
+        fprintf(stderr, "\n");*/
+
+        memcpy(queue->queue + head_offset + queue->size, queue->queue + head_offset, head_dist * sizeof(bst_node_t**));
+
+        queue->tail = queue->queue + tail_offset;
+
+        queue->head = queue->queue + queue->size + head_offset;
+        queue->size *= 2;
+        queue->bound = queue->queue + queue->size;
+        //fprintf(stderr, "After resizing: Current head %zu, current tail %zu. Size %zu\n", queue->head - queue->queue, queue->tail - queue->queue, queue->size);
+    }
+
+    //fprintf(stderr, "E: ");
+    //queue_print(queue);
+}
+
+static bst_node_t* queue_dequeue(struct queue *queue) {
+    //fprintf(stderr, "Dequeing. Current head %zu, current tail %zu. Size %zu\n", queue->head - queue->queue, queue->tail - queue->queue, queue->size);
+    bst_node_t *entry = *(queue->head);
+    *(queue->head) = NULL;
     queue->head++;
+
+    if (queue->head == queue->bound) {
+        queue->head = queue->queue;
+    }
+
+    //fprintf(stderr, "After dequeing entry %zu. Current head %zu, current tail %zu. Size %zu\n", entry->entry, queue->head - queue->queue, queue->tail - queue->queue, queue->size);
+    //fprintf(stderr, "D: ");
+    //queue_print(queue);
+    return entry;
+}
+
+static int queue_empty(struct queue *queue) {
+    return (queue->head == queue->tail);
+}
+
+/*
+struct queue_entry {
+    bst_node_t *entry;
+    struct queue_entry *next;
+};
+
+struct queue {
+    struct queue_entry *head;
+    struct queue_entry *tail;
+};
+
+static int queue_init(struct queue *queue) {
+    queue->head = NULL;
+    queue->tail = NULL;
+
+    return 0;
+}
+
+static int queue_destroy(struct queue *queue) {
+}
+
+static void queue_enqueue(struct queue *queue, bst_node_t *entry) {
+    struct queue_entry *queue_entry = malloc(sizeof(struct queue_entry));
+    queue_entry->next = NULL;
+    queue_entry->entry = entry;
+
+    if (queue->head == NULL) {
+        queue->head = queue_entry;
+        queue->tail = queue->head;
+    } else {
+        queue->tail->next = queue_entry;
+        queue->tail = queue_entry;
+    }
+}
+
+static bst_node_t* queue_dequeue(struct queue *queue) {
+    struct queue_entry *old_head = queue->head;
+    bst_node_t *entry = (queue->head->entry);
+
+    queue->head = queue->head->next;
+
+    free(old_head);
 
     return entry;
 }
 
 static int queue_empty(struct queue *queue) {
-    return (queue->head > queue->tail);
-}
+    return (queue->head == NULL);
+}*/
 
 #define MAX(a, b) (a>=b) ? a : b
 
@@ -192,8 +329,7 @@ int coal_gen_phdist(phdist_t **phdist, size_t state_size) {
 
     struct queue queue;
 
-    // TODO
-    queue_init(&queue, 999999);
+    queue_init(&queue, 2);
 
     vec_entry_t *initial = (vec_entry_t*)calloc(n, sizeof(vec_entry_t));
     initial[0] = n;
@@ -236,6 +372,7 @@ int coal_gen_phdist(phdist_t **phdist, size_t state_size) {
     size_t n_cols = 0;
 
     while (queue_empty(&queue) == 0) {
+        //queue_print(&queue);
         myidxN = queue_dequeue(&queue);
 
         myidx = myidxN->entry;
@@ -288,8 +425,13 @@ int coal_gen_phdist(phdist_t **phdist, size_t state_size) {
 
                     while (myidx >= avl_node_arr_len - 1 || idx >= avl_node_arr_len - 1) {
                         // TODO: Failure
-                        rows = realloc(rows, sizeof(avl_node_t*)*avl_node_arr_len*2);
-                        cols = realloc(cols, sizeof(avl_node_t*)*avl_node_arr_len*2);
+                        if ((rows = realloc(rows, sizeof(avl_node_t*)*avl_node_arr_len*2)) == NULL) {
+                            return 1;
+                        }
+
+                        if ((cols = realloc(cols, sizeof(avl_node_t*)*avl_node_arr_len*2)) == NULL) {
+                            return 1;
+                        }
 
                         memset(rows+avl_node_arr_len, 0, avl_node_arr_len * sizeof(avl_node_t*));
                         memset(cols+avl_node_arr_len, 0, avl_node_arr_len * sizeof(avl_node_t*));
