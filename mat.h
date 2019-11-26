@@ -12,6 +12,8 @@ typedef struct mat {
     size_t n_cols;
 } mat_t;
 
+int mat_clone(mat_t **out, mat_t *in);
+int mat_scale_rows(mat_t **out, mat_t *in, mat_entry_t *scalars);
 int mat_mult(mat_t **out, mat_t *left, mat_t *right);
 
 #endif //AMAZEPHASE_MAT_H

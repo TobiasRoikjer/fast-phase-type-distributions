@@ -3,8 +3,8 @@
 
 #include <stdlib.h>
 
-typedef ssize_t mat_key_t;
-typedef ssize_t mat_entry_t;
+typedef size_t mat_key_t;
+typedef double mat_entry_t;
 
 typedef struct avl_node_t {
     mat_key_t key;

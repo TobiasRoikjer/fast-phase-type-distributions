@@ -500,3 +500,8 @@ int coal_gen_phdist(phdist_t **phdist, size_t state_size) {
 
     return 0;
 }
+
+int coal_seg_sites(d_dist_t **dist, phdist_t *phdist) {
+    phdist_t *scaled;
+    phdist_reward_transform(&scaled, phdist);
+}
