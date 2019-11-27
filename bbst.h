@@ -24,5 +24,6 @@ int avl_node_create(avl_node_t **node, mat_key_t key, mat_entry_t entry, avl_nod
 void avl_node_destroy(avl_node_t *node);
 int avl_insert_or_inc(avl_node_t **root, mat_key_t key, mat_entry_t entry);
 int avl_flatten(avl_flat_tuple_t** arr, size_t *n, avl_node_t *root);
+avl_node_t * avl_find(avl_node_t *rootptr, mat_key_t key);
 
 #endif // AMAZEPHASE_BSST_H

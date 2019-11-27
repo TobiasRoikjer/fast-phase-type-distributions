@@ -46,13 +46,20 @@ void phdist_print_as_matrix(phdist_t *phdist) {
 }
 
 void phdist_print_as_matrix_col(phdist_t *phdist) {
-    for (size_t r = 0; r < phdist->si_mat->n_cols; r++) {
-        avl_flat_tuple_t *row = phdist->si_mat->cols[r];
+    for (size_t r = 0; r < phdist->si_mat->n_rows; r++) {
+        for (size_t c = 0; c < phdist->si_mat->n_cols; c++) {
+            avl_flat_tuple_t *col = phdist->si_mat->cols[c];
 
-        for (size_t c = 0; c < phdist->si_mat->n_rows; c++) {
-            if (row->key == c) {
-                printf("%f\t", row->entry);
-                row++;
+            while (col->entry != 0) {
+                if (col->key == r) {
+                    break;
+                }
+
+                col++;
+            }
+
+            if (col->entry != 0 && col->key == r) {
+                printf("%f\t", col->entry);
             } else {
                 printf("0\t");
             }
@@ -89,7 +96,6 @@ int phdist_clone(phdist_t **out, phdist_t *in) {
 }
 
 
-// TODO: Move scalars into coal method
 int phdist_reward_transform(phdist_t **out, phdist_t *phdist) {
     *out = malloc(sizeof(phdist_t));
 
@@ -155,27 +161,4 @@ int phdist_reward_transform(phdist_t **out, phdist_t *phdist) {
     (*out)->si_mat->n_cols = phdist->si_mat->n_cols - 1;
 
     return 0;
-}
-
-int d_ph_gen_fun(ssize_t **out, size_t from, size_t to, d_phgen_args_t *args) {
-    /*
-     *
-df <- data.frame(i = seq(0, 60), prob = c(prob(v2$newinitprob, P, p, seq(0, 3)), prob2(v2$newinitprob, D, p, seq(4, 60))))
-
-theta <- 4
-P <- (diag(nrow(v2$newsubintensitymatrix)) - 2/theta * v2$newsubintensitymatrix) %>% solve()
-p <- rep(1L, nrow(P)) - P %*% rep(1L, nrow(P))
-
-prob2 <- function(pi, dia, p, ns) {
-  #unlist(lapply(ns, function(n) {(pi %*% dia$P %*%(diag(diag(dia$D)^ n)) %*% dia$Pi %*% p)[1,1]}))
-
-  unlist(lapply(ns, function(n) {(pi %*% dia$P %*%(diag(exp(log(diag(dia$D)) * n))) %*% dia$Pi %*% p)[1,1]}))
-}
-
-prob <- function(pi, Tmat, p, ns) {
-  unlist(lapply(ns, function(n) {(pi %*% (Tmat %^% n) %*% p)[1,1]}))
-}
-     */
-
-
 }

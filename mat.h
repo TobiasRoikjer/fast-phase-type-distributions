@@ -15,5 +15,10 @@ typedef struct mat {
 int mat_clone(mat_t **out, mat_t *in);
 int mat_scale_rows(mat_t **out, mat_t *in, mat_entry_t *scalars);
 int mat_mult(mat_t **out, mat_t *left, mat_t *right);
+int mat_inv(mat_t **out, mat_t *in);
+int mat_identity(mat_t **out, size_t size);
+int mat_sub(mat_t **out, mat_t *left, mat_t *right);
+int mat_mul_scalar(mat_t **out, mat_t *in, mat_entry_t scalar);
+int mat_row_sums(mat_t **out, mat_t *in);
 
 #endif //AMAZEPHASE_MAT_H

@@ -501,7 +501,95 @@ int coal_gen_phdist(phdist_t **phdist, size_t state_size) {
     return 0;
 }
 
+int d_ph_gen_fun(double **out, size_t from, size_t to, void *args) {
+    d_phgen_args_t *arguments = (d_phgen_args_t*)args;
+
+    mat_t *P;
+    mat_t *sub;
+    mat_t *sub2;
+    mat_t *id;
+    mat_t *inv;
+    mat_t *scaled;
+    mat_t *p;
+
+
+    mat_mul_scalar(&scaled, arguments->reward, 2/arguments->theta);
+    mat_identity(&id, arguments->reward->n_rows);
+    mat_sub(&sub, id, scaled);
+    mat_inv(&P, sub);
+
+    /*mat_inv(&inv, arguments->reward);
+    mat_mul_scalar(&scaled, inv, 2/arguments->theta);
+    mat_identity(&id, arguments->reward->n_rows);
+    mat_sub(&sub, id, scaled);
+    mat_sub(&sub2, id, sub);
+    mat_row_sums(&p, sub2);*/
+
+    mat_t *row_sums;
+    mat_t *ones;
+
+    mat_row_sums(&row_sums, P);
+    mat_row_sums(&ones, id);
+    mat_sub(&p, ones, row_sums);
+
+    mat_t *pi;
+    pi= malloc(sizeof(mat_t));
+    pi->n_rows = 1;
+    pi->n_cols = P->n_cols;
+    pi->rows = malloc(sizeof(avl_flat_tuple_t*)*1);
+    pi->cols = malloc(sizeof(avl_flat_tuple_t*)*pi->n_cols);
+
+    pi->rows[0] = malloc(sizeof(avl_flat_tuple_t)*2);
+    pi->rows[0][0].entry = 1;
+    pi->rows[0][0].key = 0;
+    pi->rows[0][1].entry = 0;
+
+    for (size_t c = 0; c < pi->n_cols; c++) {
+        pi->cols[c] = malloc(sizeof(avl_flat_tuple_t)*2);
+        pi->cols[c][0].entry = 0;
+        pi->cols[c][1].entry = 0;
+    }
+
+    pi->cols[0][0].key = 0;
+    pi->cols[0][0].entry = 1;
+
+    *out = malloc(sizeof(double)*(to-from+1));
+
+    mat_t *power;
+    mat_clone(&power, P);
+
+    for (size_t i = 0; i<from;i++) {
+        mat_mult(&power, power, power);
+    }
+
+    mat_t *res1;
+    mat_t *res2;
+
+    for (size_t i = from; i<=to;i++) {
+        mat_mult(&res1, pi, power);
+        mat_mult(&res2, res1, p);
+
+
+        (*out)[i-from] = res2->rows[0][0].entry;
+
+        mat_mult(&power, power, P);
+    }
+
+    return 0;
+}
+
 int coal_seg_sites(d_dist_t **dist, phdist_t *phdist) {
-    phdist_t *scaled;
-    phdist_reward_transform(&scaled, phdist);
+    phdist_t *reward;
+    phdist_reward_transform(&reward, phdist);
+
+    (*dist) = malloc(sizeof(d_dist_t));
+    (*dist)->generator_fun = d_ph_gen_fun;
+    d_phgen_args_t * args = malloc(sizeof(d_phgen_args_t));
+    args->reward = reward->si_mat;
+    (*dist)->args = args;
+
+
+
+
+    return 0;
 }

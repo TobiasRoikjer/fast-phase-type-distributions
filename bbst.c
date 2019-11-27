@@ -185,9 +185,32 @@ avl_node_t *rotate_right(avl_node_t *parent, avl_node_t *child) {
     return child;
 }
 
-/*
- * Returns 1 on insert, 0 on find, -1 on error.
- */
+avl_node_t * avl_find(avl_node_t *rootptr, mat_key_t key) {
+    if (rootptr == NULL) {
+        return NULL;
+    }
+
+    avl_node_t *node = rootptr;
+
+    while (1) {
+        if (key < node->key) {
+            if (node->left == NULL) {
+                return NULL;
+            } else {
+                node = node->left;
+            }
+        } else if (key > node->key) {
+            if (node->right == NULL) {
+                return NULL;
+            } else {
+                node = node->right;
+            }
+        } else {
+            return node;
+        }
+    }
+}
+
 int find_or_insert(avl_node_t **out, avl_node_t *rootptr, mat_key_t key, mat_entry_t entry) {
     if (avl_node_create(out, key, entry, NULL)) {
         return -1;
@@ -351,4 +374,10 @@ int avl_flatten(avl_flat_tuple_t** arr, size_t *n, avl_node_t *root) {
             (int(*)(const void *, const void*)) compare);
 
     return 0;
+}
+
+avl_flat_tuple_t *avl_bs_flat(avl_flat_tuple_t **values, mat_key_t key) {
+    size_t low = 0;
+    size_t high = 0;
+
 }
