@@ -479,20 +479,9 @@ int coal_gen_phdist(phdist_t **phdist, size_t state_size) {
 
     ret:
     *phdist = malloc(sizeof(phdist_t));
-    size_t rn;
-    (*phdist)->si_mat = malloc(sizeof(mat_t));
-    (*phdist)->si_mat->rows = malloc(sizeof(avl_flat_tuple_t*)*n_rows);
-    (*phdist)->si_mat->cols = malloc(sizeof(avl_flat_tuple_t*)*avl_node_arr_len);
-    (*phdist)->si_mat->n_rows = n_rows;
-    (*phdist)->si_mat->n_cols= n_cols;
 
-    for (size_t i = 0; i < n_rows; i++) {
-        avl_flatten(&((*phdist)->si_mat->rows[i]), &rn, rows[i]);
-    }
-
-    for (size_t i = 0; i < n_cols; i++) {
-        avl_flatten(&((*phdist)->si_mat->cols[i]), &rn, cols[i]);
-    }
+    mat_malloc(&((*phdist)->si_mat), n_rows, n_cols);
+    mat_flatten((*phdist)->si_mat, rows, cols);
 
     (*phdist)->rw_arr = StSpM;
     (*phdist)->n_rw_rows = ri;
@@ -506,17 +495,16 @@ int d_ph_gen_fun(double **out, size_t from, size_t to, void *args) {
 
     mat_t *P;
     mat_t *sub;
-    mat_t *sub2;
+    mat_t *inv_P;
     mat_t *id;
-    mat_t *inv;
     mat_t *scaled;
     mat_t *p;
 
 
     mat_mul_scalar(&scaled, arguments->reward, 2/arguments->theta);
     mat_identity(&id, arguments->reward->n_rows);
-    mat_sub(&sub, id, scaled);
-    mat_inv(&P, sub);
+    mat_sub(&inv_P, id, scaled);
+    mat_inv(&P, inv_P);
 
     /*mat_inv(&inv, arguments->reward);
     mat_mul_scalar(&scaled, inv, 2/arguments->theta);
@@ -556,23 +544,25 @@ int d_ph_gen_fun(double **out, size_t from, size_t to, void *args) {
     *out = malloc(sizeof(double)*(to-from+1));
 
     mat_t *power;
-    mat_clone(&power, P);
+    mat_t *inv_power;
+    mat_clone(&inv_power, inv_P);
 
     for (size_t i = 0; i<from;i++) {
-        mat_mult(&power, power, power);
+        mat_mult(&inv_power, inv_power, inv_P);
     }
 
     mat_t *res1;
     mat_t *res2;
 
     for (size_t i = from; i<=to;i++) {
+        mat_inv(&power, inv_power);
         mat_mult(&res1, pi, power);
         mat_mult(&res2, res1, p);
 
 
         (*out)[i-from] = res2->rows[0][0].entry;
 
-        mat_mult(&power, power, P);
+        mat_mult(&inv_power, inv_power, inv_P);
     }
 
     return 0;

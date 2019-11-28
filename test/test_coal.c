@@ -153,7 +153,13 @@ void test_inverse() {
     mat_t *m;
     mat_clone(&m, phdist2->si_mat);
     mat_t *inv;
-    mat_inv(&inv, phdist2->si_mat);
+    mat_inv_slow(&inv, m);
+    phdist2->si_mat = inv;
+    phdist_print_as_matrix(phdist2);
+    phdist_print_as_matrix_col(phdist2);
+    mat_t *s;
+    mat_clone(&s, inv);
+    mat_inv(&inv, m);
     phdist2->si_mat = inv;
     phdist_print_as_matrix(phdist2);
     phdist_print_as_matrix_col(phdist2);
@@ -170,7 +176,7 @@ void test_inverse() {
 void test_time_seg() {
     phdist_t *phdist;
     time_t t = time(NULL);
-    coal_gen_phdist(&phdist, 20);
+    coal_gen_phdist(&phdist, 25);
     d_dist_t *dist;
     coal_seg_sites(&dist, phdist);
     d_phgen_args_t *args = dist->args;
@@ -205,29 +211,95 @@ void test_seg() {
 
 void test_time_inverse() {
     phdist_t *phdist2;
-    time_t t = time(NULL);
     coal_gen_phdist(&phdist2, 25);
 
     phdist2->n_rw_rows = 0;
     mat_t *inv;
+    mat_mult(&(phdist2->si_mat), phdist2->si_mat, phdist2->si_mat);
+    mat_mult(&(phdist2->si_mat), phdist2->si_mat, phdist2->si_mat);
+    time_t t = time(NULL);
     mat_inv(&inv, phdist2->si_mat);
     phdist2->si_mat = inv;
-    printf("Time %zu\n", time(NULL) - t);
+    printf("Fast Time %zu\n", time(NULL) - t);
+
+
+    t = time(NULL);
+    mat_inv_slow(&inv, phdist2->si_mat);
+    phdist2->si_mat = inv;
+    printf("Slow Time %zu\n", time(NULL) - t);
+}
+
+
+void test_time_mul() {
+    phdist_t *phdist;
+    coal_gen_phdist(&phdist, 25);
+    clock_t t = clock();
+    mat_t *mat = phdist->si_mat;
+    mat_inv(&mat, mat);
+    //mat_print_as_matrix(mat);
+    mat_mult(&mat, mat, mat);
+    //mat_print_as_matrix(mat);
+    printf("Time %zu\n", (clock() - t)/100000);
+}
+
+
+void test_mat_mul() {
+    phdist_t *phdist;
+    coal_gen_phdist(&phdist, 8);
+    mat_t *mat = phdist->si_mat;
+    mat_t *inv;
+    mat_t *id;
+    mat_identity(&id, mat->n_rows);
+    mat_t *res;
+    mat_mult(&res, id, mat);
+    mat_print_as_matrix(res);
+    mat_mult(&res, mat, id);
+    mat_print_as_matrix(res);
+    mat_inv(&inv, mat);
+    mat_mult(&res, inv, mat);
+    mat_print_as_matrix(res);
+
+    mat_mult(&mat, mat, mat);
+    mat_mult(&inv, inv, inv);
+    mat_mult(&res, inv, mat);
+    mat_print_as_matrix(res);
+
+    mat_mult(&res, mat, mat);
+    mat_mult(&res, inv, res);
+    mat_mult(&res, res, inv);
+    mat_print_as_matrix(res);
 }
 
 int main(int argc, char **argv) {
-    //test_gen();
-    //test_clone();
+    /*test_gen();
+    printf("\n..\n");
+    test_clone();
+    printf("\n..\n");
     //test_zeroes();
+    printf("\n..\n");
     //test_zeroes2();
-    //test_scalar();
-    //test_reward_sites();
+    printf("\n..\n");
+    test_scalar();
+    printf("\n..\n");
+    test_reward_sites();
+    printf("\n..\n");*/
     //test_inverse();
+    //printf("\n..\n");
     //test_time_inverse();
-    //test_mat_sub();
-    //test_mat_scalar();
-    //test_mat_rowsum();
-    //test_seg();
+    //printf("\n..\n");
+    /*test_mat_sub();
+    printf("\n..\n");
+    test_mat_scalar();
+    printf("\n..\n");
+    test_mat_rowsum();
+    printf("\n..\n");
+    test_seg();
+    printf("\n..\n");*/
     test_time_seg();
+    printf("\n..\n");
+    //test_time_mul();
+    //printf("\n..\n");
+    //test_mat_mul();
+    //printf("\n..\n");
     return 0;
 }

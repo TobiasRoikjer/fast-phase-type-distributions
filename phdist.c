@@ -19,20 +19,7 @@ size_t phdist_count_non_zeros(phdist_t *phdist) {
 }
 
 void phdist_print_as_matrix(phdist_t *phdist) {
-    for (size_t r = 0; r < phdist->si_mat->n_rows; r++) {
-        avl_flat_tuple_t *row = phdist->si_mat->rows[r];
-
-        for (size_t c = 0; c < phdist->si_mat->n_cols; c++) {
-            if (row->key == c && row->entry != 0) {
-                printf("%f\t", row->entry);
-                row++;
-            } else {
-                printf("0\t");
-            }
-        }
-
-        printf("\n");
-    }
+    mat_print_as_matrix(phdist->si_mat);
 
     printf("\n");
 
@@ -46,27 +33,7 @@ void phdist_print_as_matrix(phdist_t *phdist) {
 }
 
 void phdist_print_as_matrix_col(phdist_t *phdist) {
-    for (size_t r = 0; r < phdist->si_mat->n_rows; r++) {
-        for (size_t c = 0; c < phdist->si_mat->n_cols; c++) {
-            avl_flat_tuple_t *col = phdist->si_mat->cols[c];
-
-            while (col->entry != 0) {
-                if (col->key == r) {
-                    break;
-                }
-
-                col++;
-            }
-
-            if (col->entry != 0 && col->key == r) {
-                printf("%f\t", col->entry);
-            } else {
-                printf("0\t");
-            }
-        }
-
-        printf("\n");
-    }
+    mat_print_as_matrix_col(phdist->si_mat);
 
     printf("\n");
 

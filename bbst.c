@@ -362,16 +362,23 @@ static ssize_t compare(const avl_flat_tuple_t *a, const avl_flat_tuple_t *b)
     return (a->key - b->key);
 }
 
-int avl_flatten(avl_flat_tuple_t** arr, size_t *n, avl_node_t *root) {
-    *n = avl_get_size(root);
-    if ((*arr = (avl_flat_tuple_t*) malloc(sizeof(avl_flat_tuple_t)*(*n + 1))) == NULL) {
+int avl_flatten(avl_flat_tuple_t** arr, size_t *max_key, avl_node_t *root) {
+    size_t n = avl_get_size(root);
+
+    if ((*arr = (avl_flat_tuple_t*) malloc(sizeof(avl_flat_tuple_t)*(n + 1))) == NULL) {
         return 1;
     }
 
     avl_fill_arr(root, *arr);
-    (*arr)[*n].entry = 0;
-    qsort(*arr, *n, sizeof(avl_flat_tuple_t),
+    (*arr)[n].entry = 0;
+    qsort(*arr, n, sizeof(avl_flat_tuple_t),
             (int(*)(const void *, const void*)) compare);
+
+    if (n > 0) {
+        *max_key = (*arr)[n - 1].key;
+    } else {
+        *max_key = 0;
+    }
 
     return 0;
 }
