@@ -311,6 +311,111 @@ static int queue_empty(struct queue *queue) {
 
 #define MAX(a, b) (a>=b) ? a : b
 
+
+int coal_gen_erlang_phdist(phdist_t **phdist, size_t samples) {
+    size_t n_rows = samples-1;
+    size_t n_cols = samples-1;
+
+    *phdist = malloc(sizeof(phdist_t));
+
+    (*phdist)->n_rw_rows = n_rows;
+    (*phdist)->n_rw_cols = 1;
+
+    if (((*phdist)->rw_arr = malloc(sizeof(size_t*)*n_rows)) == NULL) {
+        return -1;
+    }
+
+    if (((*phdist)->si_mat = malloc(sizeof(mat_t))) == NULL) {
+        return -1;
+    }
+
+    if (((*phdist)->si_mat->rows = malloc(sizeof(avl_flat_tuple_t*)*n_rows)) == NULL) {
+        return -1;
+    }
+
+    if (((*phdist)->si_mat->cols = malloc(sizeof(avl_flat_tuple_t*)*n_cols)) == NULL) {
+        return -1;
+    }
+
+    (*phdist)->si_mat->n_rows = n_rows;
+    (*phdist)->si_mat->n_cols = n_cols;
+
+    if (((*phdist)->si_mat->max_row_keys = malloc(sizeof(size_t)*n_rows)) == NULL) {
+        return -1;
+    }
+
+    if (((*phdist)->si_mat->max_col_keys = malloc(sizeof(size_t)*n_cols)) == NULL) {
+        return -1;
+    }
+
+    for (size_t i = 0; i < n_rows; i++) {
+        mat_entry_t n = (mat_entry_t)(samples-i);
+
+        if (((*phdist)->rw_arr[i] = malloc(sizeof(size_t)*1)) == NULL) {
+            return -1;
+        }
+
+        (*phdist)->rw_arr[i][0] = samples - i;
+
+        if (i == n_rows - 1) {
+            if (((*phdist)->si_mat->rows[i] = malloc(sizeof(avl_flat_tuple_t) * 2)) == NULL) {
+                return -1;
+            }
+
+            (*phdist)->si_mat->max_row_keys[i] = i;
+
+            (*phdist)->si_mat->rows[i][0].entry =  -n * (n - 1) / 2;
+            (*phdist)->si_mat->rows[i][0].key = i;
+            (*phdist)->si_mat->rows[i][1].key = 0;
+            (*phdist)->si_mat->rows[i][1].entry = 0;
+        } else {
+            if (((*phdist)->si_mat->rows[i] = malloc(sizeof(avl_flat_tuple_t) * 3)) == NULL) {
+                return -1;
+            }
+
+            (*phdist)->si_mat->max_row_keys[i] = i+1;
+
+            (*phdist)->si_mat->rows[i][0].entry = -n * (n - 1) / 2;
+            (*phdist)->si_mat->rows[i][0].key = i;
+            (*phdist)->si_mat->rows[i][1].entry = n * (n - 1) / 2;
+            (*phdist)->si_mat->rows[i][1].key = i + 1;
+            (*phdist)->si_mat->rows[i][2].key = 0;
+            (*phdist)->si_mat->rows[i][2].entry = 0;
+        }
+    }
+
+    for (size_t i = 0; i < n_cols; i++) {
+        mat_entry_t n = (mat_entry_t)(samples-i+1);
+        mat_entry_t n2 = (mat_entry_t)(samples-i);
+
+        (*phdist)->si_mat->max_col_keys[i] = i;
+
+        if (i == 0) {
+            if (((*phdist)->si_mat->cols[i] = malloc(sizeof(avl_flat_tuple_t) * 2)) == NULL) {
+                return -1;
+            }
+
+            (*phdist)->si_mat->cols[i][0].entry =  -n2 * (n2 - 1) / 2;
+            (*phdist)->si_mat->cols[i][0].key = i;
+            (*phdist)->si_mat->cols[i][1].key = i+1;
+            (*phdist)->si_mat->cols[i][1].entry = 0;
+        } else {
+            if (((*phdist)->si_mat->cols[i] = malloc(sizeof(avl_flat_tuple_t) * 3)) == NULL) {
+                return -1;
+            }
+
+            (*phdist)->si_mat->cols[i][0].entry =  n * (n - 1) / 2;
+            (*phdist)->si_mat->cols[i][0].key = i-1;
+            (*phdist)->si_mat->cols[i][1].entry =  -n2 * (n2 - 1) / 2;
+            (*phdist)->si_mat->cols[i][1].key = i;
+            (*phdist)->si_mat->cols[i][2].key = i+1;
+            (*phdist)->si_mat->cols[i][2].entry = 0;
+        }
+    }
+
+    return 0;
+}
+
 int coal_gen_phdist(phdist_t **phdist, size_t state_size) {
     avl_node_t** rows;
     avl_node_t** cols;
@@ -334,7 +439,10 @@ int coal_gen_phdist(phdist_t **phdist, size_t state_size) {
     vec_entry_t *initial = (vec_entry_t*)calloc(n, sizeof(vec_entry_t));
     initial[0] = n;
 
-    size_t StSpM_n = 1;
+    vec_entry_t *mrca = (vec_entry_t*)calloc(n, sizeof(vec_entry_t));
+    mrca[n-1] = 1;
+
+    size_t StSpM_n = 2;
     size_t **StSpM;
 
     if ((StSpM = malloc(sizeof(size_t*)*StSpM_n)) == NULL) {
@@ -350,6 +458,7 @@ int coal_gen_phdist(phdist_t **phdist, size_t state_size) {
     }*/
 
     StSpM[0] = malloc(sizeof(size_t) * state_size);
+    StSpM[1] = malloc(sizeof(size_t) * state_size);
 
     /*for (size_t r = 0; r < 100; r++) {
         if ((StSpM[r] = malloc(sizeof(size_t) * state_size)) == NULL) {
@@ -357,19 +466,27 @@ int coal_gen_phdist(phdist_t **phdist, size_t state_size) {
         }
     }*/
 
-    bst_node_t *BST = bst_init(initial, 0);
+    bst_node_t *BST = bst_init(mrca, 0);
+    bst_node_t *BST_initial = bst_add(BST, initial, 1);
 
     queue_enqueue(&queue, BST);
-    memcpy(StSpM[0], initial, state_size);
-    size_t ri = 1;
+    queue_enqueue(&queue, BST_initial);
+    memcpy(StSpM[0], mrca, state_size);
+    memcpy(StSpM[1], initial, state_size);
 
     vec_entry_t *v;
     size_t myidx = 0;
     size_t idx;
     bst_node_t *idxN;
     bst_node_t *myidxN;
-    size_t n_rows = 0;
-    size_t n_cols = 0;
+
+    // Set n_rows and n_cols to 1, as the MRCA state does not
+    // increase these.
+    size_t n_rows = 1;
+    size_t n_cols = 1;
+
+    // Set ri to 2 as we add two nodes: Initial and MRCA
+    size_t ri = 2;
 
     while (queue_empty(&queue) == 0) {
         //queue_print(&queue);
@@ -392,6 +509,7 @@ int coal_gen_phdist(phdist_t **phdist, size_t state_size) {
                         vec_entry_t *nv = (vec_entry_t*)malloc(SIZE);
                         memcpy(nv, v, SIZE);
 
+                        // TODO: Is this needed?
                         for (vec_entry_t k = 0; k < n; k++) {
                             nv[k] = v[k];
                         }
@@ -483,8 +601,45 @@ int coal_gen_phdist(phdist_t **phdist, size_t state_size) {
     mat_malloc(&((*phdist)->si_mat), n_rows, n_cols);
     mat_flatten((*phdist)->si_mat, rows, cols);
 
-    (*phdist)->rw_arr = StSpM;
-    (*phdist)->n_rw_rows = ri;
+    // Remove first row/column as it is the MRCA state
+    for (size_t r = 0; r < (*phdist)->si_mat->n_rows; r++) {
+        (*phdist)->si_mat->max_row_keys[r]--;
+
+        if ((*phdist)->si_mat->rows[r][0].key == 0) {
+            (*phdist)->si_mat->rows[r]++;
+        }
+
+        avl_flat_tuple_t *p = (*phdist)->si_mat->rows[r];
+
+        while (p->entry != 0) {
+            p->key--;
+            p++;
+        }
+    }
+
+    for (size_t c = 0; c < (*phdist)->si_mat->n_cols; c++) {
+        (*phdist)->si_mat->max_col_keys[c]--;
+
+        avl_flat_tuple_t *p = (*phdist)->si_mat->cols[c];
+
+        while (p->entry != 0) {
+            p->key--;
+            p++;
+        }
+    }
+
+    (*phdist)->si_mat->rows++;
+    (*phdist)->si_mat->cols++;
+    (*phdist)->si_mat->n_rows--;
+    (*phdist)->si_mat->n_rows--;
+    (*phdist)->si_mat->n_cols--;
+
+    // Remove the MRCA state
+    (*phdist)->rw_arr = StSpM+1;
+
+    // Remove the MRCA state
+    (*phdist)->n_rw_rows = ri - 1;
+    // Do not include the n-ton, therefore state_size - 1
     (*phdist)->n_rw_cols = state_size;
 
     return 0;
@@ -527,15 +682,20 @@ int d_ph_gen_fun(double **out, size_t from, size_t to, void *args) {
     pi->rows = malloc(sizeof(avl_flat_tuple_t*)*1);
     pi->cols = malloc(sizeof(avl_flat_tuple_t*)*pi->n_cols);
 
+    pi->max_row_keys = malloc(sizeof(size_t)*1);
+    pi->max_col_keys = malloc(sizeof(size_t)*pi->n_cols);
+
     pi->rows[0] = malloc(sizeof(avl_flat_tuple_t)*2);
     pi->rows[0][0].entry = 1;
     pi->rows[0][0].key = 0;
     pi->rows[0][1].entry = 0;
+    pi->max_row_keys[0] = 0;
 
     for (size_t c = 0; c < pi->n_cols; c++) {
         pi->cols[c] = malloc(sizeof(avl_flat_tuple_t)*2);
         pi->cols[c][0].entry = 0;
         pi->cols[c][1].entry = 0;
+        pi->max_col_keys[c] = 0;
     }
 
     pi->cols[0][0].key = 0;

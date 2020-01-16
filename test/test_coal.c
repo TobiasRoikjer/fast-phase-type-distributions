@@ -60,14 +60,29 @@ void test_clone() {
 }
 
 void test_gen() {
-    phdist_t *phdist2;
-    coal_gen_phdist(&phdist2, 5);
     phdist_t *phdist;
-    phdist_clone(&phdist, phdist2);
+    coal_gen_phdist(&phdist, 5);
     phdist_print_as_matrix(phdist);
     phdist_print_as_matrix_col(phdist);
     printf("\n%zu\n", phdist_count_non_zeros(phdist));
+    phdist_t *phdist2;
+    phdist_reward_transform(&phdist2, phdist);
+    phdist_print_as_matrix(phdist2);
+    phdist_print_as_matrix_col(phdist2);
 }
+
+void test_gen_erlang() {
+    phdist_t *phdist;
+    coal_gen_erlang_phdist(&phdist, 5);
+    phdist_print_as_matrix(phdist);
+    phdist_print_as_matrix_col(phdist);
+    printf("\n%zu\n", phdist_count_non_zeros(phdist));
+    phdist_t *phdist2;
+    phdist_reward_transform(&phdist2, phdist);
+    phdist_print_as_matrix(phdist2);
+    phdist_print_as_matrix_col(phdist2);
+}
+
 
 void test_reward_sites() {
     phdist_t *phdist2;
@@ -176,7 +191,7 @@ void test_inverse() {
 void test_time_seg() {
     phdist_t *phdist;
     time_t t = time(NULL);
-    coal_gen_phdist(&phdist, 25);
+    coal_gen_phdist(&phdist, 20);
     d_dist_t *dist;
     coal_seg_sites(&dist, phdist);
     d_phgen_args_t *args = dist->args;
@@ -190,6 +205,26 @@ void test_time_seg() {
 
     printf("\n Time: %zu\n", time(NULL) - t);
 }
+
+
+void test_time_seg_erlang() {
+    phdist_t *phdist;
+    time_t t = time(NULL);
+    coal_gen_erlang_phdist(&phdist, 20);
+    d_dist_t *dist;
+    coal_seg_sites(&dist, phdist);
+    d_phgen_args_t *args = dist->args;
+    args->theta = 4;
+    double *out;
+    dist->generator_fun(&out, 0, 20, args);
+
+    for (size_t i = 0; i <= 20; i++) {
+        printf("%f ", out[i]);
+    }
+
+    printf("\n Time: %zu\n", time(NULL) - t);
+}
+
 
 void test_seg() {
     phdist_t *phdist;
@@ -270,10 +305,14 @@ void test_mat_mul() {
     mat_print_as_matrix(res);
 }
 
+
+
 int main(int argc, char **argv) {
-    /*test_gen();
+    test_gen();
     printf("\n..\n");
-    test_clone();
+    test_gen_erlang();
+    printf("\n..\n");
+    /*//test_clone();
     printf("\n..\n");
     //test_zeroes();
     printf("\n..\n");
@@ -296,6 +335,8 @@ int main(int argc, char **argv) {
     test_seg();
     printf("\n..\n");*/
     test_time_seg();
+    printf("\n..\n");
+    test_time_seg_erlang();
     printf("\n..\n");
     //test_time_mul();
     //printf("\n..\n");

@@ -6,6 +6,7 @@
 #include <stdlib.h>
 
 int coal_gen_phdist(phdist_t **phdist, size_t state_size);
+int coal_gen_erlang_phdist(phdist_t **phdist, size_t samples);
 int coal_seg_sites(d_dist_t **dist, phdist_t *phdist);
 
 

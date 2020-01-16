@@ -69,9 +69,8 @@ int phdist_reward_transform(phdist_t **out, phdist_t *phdist) {
     mat_t *scaled;
     mat_entry_t *scalars = calloc(phdist->n_rw_rows, sizeof(mat_entry_t));
 
-    for (size_t r = 0; r < phdist->n_rw_rows - 1; r++) {
-        // Do not include the n-ton
-        for (size_t c = 0; c < phdist->n_rw_cols - 1; c++) {
+    for (size_t r = 0; r < phdist->n_rw_rows; r++) {
+        for (size_t c = 0; c < phdist->n_rw_cols; c++) {
             scalars[r] += phdist->rw_arr[r][c];
         }
 
@@ -80,7 +79,7 @@ int phdist_reward_transform(phdist_t **out, phdist_t *phdist) {
 
     mat_scale_rows(&scaled, phdist->si_mat, scalars);
 
-    for (avl_flat_tuple_t *p = scaled->rows[scaled->n_rows-1]; p->entry != 0; p++) {
+    /*for (avl_flat_tuple_t *p = scaled->rows[scaled->n_rows-1]; p->entry != 0; p++) {
         p->entry = 0;
     }
 
@@ -118,14 +117,14 @@ int phdist_reward_transform(phdist_t **out, phdist_t *phdist) {
         if (p->key == scaled->n_rows - 1) {
             p->entry = 0;
         }
-    }
+    }*/
 
     (*out)->si_mat = scaled;
     (*out)->rw_arr = NULL;
     (*out)->n_rw_rows = 0;
     (*out)->n_rw_cols = 0;
-    (*out)->si_mat->n_rows = phdist->si_mat->n_rows - 1;
-    (*out)->si_mat->n_cols = phdist->si_mat->n_cols - 1;
+    (*out)->si_mat->n_rows = phdist->si_mat->n_rows;
+    (*out)->si_mat->n_cols = phdist->si_mat->n_cols;
 
     return 0;
 }
