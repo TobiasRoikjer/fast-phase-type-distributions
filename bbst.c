@@ -1,5 +1,7 @@
 #include "bbst.h"
 
+#include <stdio.h>
+
 int avl_node_create(avl_node_t **node, mat_key_t key, mat_entry_t entry, avl_node_t *parent) {
     if ((*node = (avl_node_t*) malloc(sizeof(avl_node_t))) == NULL) {
         return 1;
@@ -381,6 +383,46 @@ int avl_flatten(avl_flat_tuple_t** arr, size_t *max_key, avl_node_t *root) {
     }
 
     return 0;
+}
+
+void avl_print_impl(avl_node_t *rootptr, size_t indent) {
+    if (rootptr == NULL) {
+        for (size_t i = 0; i < indent; i++) {
+            fprintf(stderr, "\t");
+        }
+        fprintf(stderr, "NULL\n");
+        return;
+    }
+
+    for (size_t i = 0; i < indent; i++) {
+        fprintf(stderr, "\t");
+    }
+
+    fprintf(stderr, "%zu %f [\n", rootptr->key, rootptr->entry);
+
+    for (size_t i = 0; i < indent; i++) {
+        fprintf(stderr, "\t");
+    }
+
+    fprintf(stderr, "left: \n");
+    avl_print_impl(rootptr->left, indent+1);
+
+    for (size_t i = 0; i < indent; i++) {
+        fprintf(stderr, "\t");
+    }
+
+    fprintf(stderr, "right: \n");
+    avl_print_impl(rootptr->right, indent+1);
+
+    for (size_t i = 0; i < indent; i++) {
+        fprintf(stderr, "\t");
+    }
+
+    fprintf(stderr, "]");
+}
+
+void avl_print(avl_node_t *rootptr) {
+    avl_print_impl(rootptr, 0);
 }
 
 avl_flat_tuple_t *avl_bs_flat(avl_flat_tuple_t **values, mat_key_t key) {

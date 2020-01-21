@@ -349,6 +349,8 @@ int mat_row_sums(mat_t **out, mat_t *in) {
 
     (*out)->cols = malloc(sizeof(avl_flat_tuple_t*)*2);
 
+    (*out)->max_col_keys = malloc(sizeof(size_t)*2);
+
     (*out)->max_col_keys[0] = in->n_rows - 1;
     (*out)->max_col_keys[1] = 0;
 
