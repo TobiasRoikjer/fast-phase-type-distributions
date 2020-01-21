@@ -135,10 +135,6 @@ static bool bst_find_or_parent(bst_node_t **out, bst_node_t *node, vec_entry_t *
     return false;
 }
 
-
-
-
-
 struct stack {
     expanding_arr_t *stack;
     size_t head_index;
@@ -284,6 +280,14 @@ static int queue_empty(struct queue *queue) {
 
 #define MAX(a, b) (a>=b) ? a : b
 
+
+static void print_vector(vec_entry_t *v, size_t nmemb) {
+    fprintf(stderr, "(");
+    for (size_t i = 0; i < nmemb; i++) {
+        fprintf(stderr, "%zu", v[i]);
+    }
+    fprintf(stderr, ")");
+}
 
 int coal_gen_erlang_phdist(phdist_t **phdist, size_t samples) {
     size_t n_rows = samples-1;
@@ -504,82 +508,121 @@ static int queue_pop_ss_hobolth_compress(phdist_t **phdist, struct queue_data *q
         myidxN = stack_pop(stack);
 
         myidx = myidxN->entry;
-        v = (vec_entry_t *) malloc(vector_size);
-        memcpy(v, myidxN->value, vector_size);
 
-        for (vec_entry_t i = 0; i < state_size; i++) {
-            for (vec_entry_t j = i; j < state_size; j++) {
-                if (((i == j && v[i] >= 2) || (i != j && v[i] > 0 && v[j] > 0))) {
-                    mat_entry_t t = i == j ? v[i] * (v[i] - 1) / 2 : v[i] * v[j];
+        expanding_arr_t *set_v = malloc(sizeof(expanding_arr_t));
+        set_v->length = 1;
+        set_v->entry_size = sizeof(vec_entry_t**);
+        set_v->value = malloc(sizeof(vec_entry_t***));
+        *set_v->value = malloc(sizeof(vec_entry_t**) * 1);
 
-                    if (v[reward_index] == 0) {
-                        // TODO Push alpha
-                        
-                    } else {
-                        //t /= v[reward_index];
-                    }
+        vec_entry_t *my_v = (vec_entry_t *) malloc(vector_size);
+        memcpy(my_v, myidxN->value, vector_size);
 
-                    v[i]--;
-                    v[j]--;
-                    v[(i + j + 2) - 1]++;
+        size_t entries = 0;
+        struct stack *stack_v = malloc(sizeof(struct stack));
+        stack_init(stack_v, 1);
+        // TODO: Bad cast, let the stack be void*
+        stack_push(stack_v, (bst_node_t*)my_v);
 
-                    if (!bst_find_or_parent(&idxN, BST, v)) {
-                        vec_entry_t *nv = (vec_entry_t *) malloc(vector_size);
-                        memcpy(nv, v, vector_size);
+        while (!stack_empty(stack_v)) {
+            vec_entry_t *v_entry = (vec_entry_t*)stack_pop(stack_v);
 
-                        idx = ri;
-
-                        while (ri >= StSpM_n) {
-                            // TODO: Failure
-                            StSpM = realloc(StSpM, sizeof(size_t *) * StSpM_n * 2);
-
-                            for (size_t k = StSpM_n; k < StSpM_n * 2; k++) {
-                                StSpM[k] = malloc(sizeof(size_t) * state_size);
-                            }
-
-                            StSpM_n *= 2;
+            if (v_entry[reward_index] == 0) {
+                for (vec_entry_t i = 0; i < state_size; i++) {
+                    for (vec_entry_t j = i; j < state_size; j++) {
+                        if (((i == j && v_entry[i] >= 2) || (i != j && v_entry[i] > 0 && v_entry[j] > 0))) {
+                            vec_entry_t *new_entry = (vec_entry_t *) malloc(vector_size);
+                            memcpy(new_entry, v_entry, vector_size);
+                            new_entry[i]--;
+                            new_entry[j]--;
+                            new_entry[(i + j + 2) - 1]++;
+                            stack_push(stack_v, new_entry);
                         }
-
-                        memcpy(StSpM[ri], nv, vector_size);
-                        idxN = bst_add(idxN, nv, ri);
-                        stack_push(stack, idxN);
-                        ri = ri + 1;
-                    } else {
-                        idx = idxN->entry;
                     }
-
-                    v[i]++;
-                    v[j]++;
-                    v[(i + j + 2) - 1]--;
-
-                    expanding_arr_fit(expanding_rows, idx);
-                    expanding_arr_fit(expanding_rows, myidx);
-                    expanding_arr_fit(expanding_cols, idx);
-                    expanding_arr_fit(expanding_cols, myidx);
-
-                    if (avl_insert_or_inc(&((*rows)[myidx]), idx, t)) {
-                        return 1;
-                    }
-
-                    if (avl_insert_or_inc(&((*rows)[myidx]), myidx, -t)) {
-                        return 1;
-                    }
-
-                    if (avl_insert_or_inc(&((*cols)[idx]), myidx, t)) {
-                        return 1;
-                    }
-
-                    if (avl_insert_or_inc(&((*cols)[myidx]), myidx, -t)) {
-                        return 1;
-                    }
-
-                    n_rows = MAX(n_rows, myidx + 1);
-                    n_cols = MAX(n_cols, idx + 1);
                 }
+            } else {
+                expanding_arr_fit(set_v, entries + 1);
+                ((vec_entry_t **) (*set_v->value))[entries] = v_entry;
+                entries++;
             }
         }
 
-        free(v);
+        fprintf(stderr, "The set for ");
+        print_vector(my_v, state_size);
+        fprintf(stderr, " is ");
+
+        for (size_t vectors_entry = 0; vectors_entry < entries; vectors_entry++) {
+            v = ((vec_entry_t**)(*set_v->value))[vectors_entry];
+            print_vector(v, state_size);
+            fprintf(stderr, "\n and: ");
+
+            for (vec_entry_t i = 0; i < state_size; i++) {
+                for (vec_entry_t j = i; j < state_size; j++) {
+                    if (((i == j && v[i] >= 2) || (i != j && v[i] > 0 && v[j] > 0))) {
+                        mat_entry_t t = i == j ? v[i] * (v[i] - 1) / 2 : v[i] * v[j];
+
+                        //t /= v[reward_index];
+
+                        v[i]--;
+                        v[j]--;
+                        v[(i + j + 2) - 1]++;
+
+                        if (!bst_find_or_parent(&idxN, BST, v)) {
+                            vec_entry_t *nv = (vec_entry_t *) malloc(vector_size);
+                            memcpy(nv, v, vector_size);
+
+                            idx = ri;
+
+                            while (ri >= StSpM_n) {
+                                // TODO: Failure
+                                StSpM = realloc(StSpM, sizeof(size_t *) * StSpM_n * 2);
+
+                                for (size_t k = StSpM_n; k < StSpM_n * 2; k++) {
+                                    StSpM[k] = malloc(sizeof(size_t) * state_size);
+                                }
+
+                                StSpM_n *= 2;
+                            }
+
+                            memcpy(StSpM[ri], nv, vector_size);
+                            idxN = bst_add(idxN, nv, ri);
+                            stack_push(stack, idxN);
+                            ri = ri + 1;
+                        } else {
+                            idx = idxN->entry;
+                        }
+
+                        v[i]++;
+                        v[j]++;
+                        v[(i + j + 2) - 1]--;
+
+                        expanding_arr_fit(expanding_rows, idx);
+                        expanding_arr_fit(expanding_rows, myidx);
+                        expanding_arr_fit(expanding_cols, idx);
+                        expanding_arr_fit(expanding_cols, myidx);
+
+                        if (avl_insert_or_inc(&((*rows)[myidx]), idx, t)) {
+                            return 1;
+                        }
+
+                        if (avl_insert_or_inc(&((*rows)[myidx]), myidx, -t)) {
+                            return 1;
+                        }
+
+                        if (avl_insert_or_inc(&((*cols)[idx]), myidx, t)) {
+                            return 1;
+                        }
+
+                        if (avl_insert_or_inc(&((*cols)[myidx]), myidx, -t)) {
+                            return 1;
+                        }
+
+                        n_rows = MAX(n_rows, myidx + 1);
+                        n_cols = MAX(n_cols, idx + 1);
+                    }
+                }
+            }
+        }
     }
 
     coal_make_phdist(phdist, n_rows, n_cols, *rows, *cols, StSpM, ri, state_size);
