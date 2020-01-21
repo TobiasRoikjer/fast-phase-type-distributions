@@ -418,7 +418,7 @@ struct state_hobolth {
     size_t **StSpM;
 };
 
-static int queue_pop_ss_hobolth(phdist_t **phdist, struct queue_data *queue_data, void *args) {
+static int queue_pop_ss_hobolth_compress(phdist_t **phdist, struct queue_data *queue_data, void *args) {
     vec_entry_t *v;
     size_t myidx = 0;
     size_t idx;
@@ -426,12 +426,13 @@ static int queue_pop_ss_hobolth(phdist_t **phdist, struct queue_data *queue_data
     bst_node_t *myidxN;
     struct queue *queue = queue_data->queue;
     struct state_hobolth *state = queue_data->state;
-    coal_args_hobolth_t *targs = args;
+    coal_args_compress_t *targs = args;
 
-    size_t n = targs->n;
-    
+    size_t state_size = targs->n;
+    size_t reward_index = targs->n;
+
     size_t vector_size = queue_data->vector_size;
-    
+
     bst_node_t *BST = state->BST;
     size_t ri = state->ri;
     size_t n_rows = state->n_rows;
@@ -450,8 +451,8 @@ static int queue_pop_ss_hobolth(phdist_t **phdist, struct queue_data *queue_data
         v = (vec_entry_t *) malloc(vector_size);
         memcpy(v, myidxN->value, vector_size);
 
-        for (vec_entry_t i = 0; i < n; i++) {
-            for (vec_entry_t j = i; j < n; j++) {
+        for (vec_entry_t i = 0; i < state_size; i++) {
+            for (vec_entry_t j = i; j < state_size; j++) {
                 if (((i == j && v[i] >= 2) || (i != j && v[i] > 0 && v[j] > 0))) {
                     ssize_t t = i == j ? v[i] * (v[i] - 1) / 2 : v[i] * v[j];
 
@@ -470,7 +471,7 @@ static int queue_pop_ss_hobolth(phdist_t **phdist, struct queue_data *queue_data
                             StSpM = realloc(StSpM, sizeof(size_t *) * StSpM_n * 2);
 
                             for (size_t k = StSpM_n; k < StSpM_n * 2; k++) {
-                                StSpM[k] = malloc(sizeof(size_t) * n);
+                                StSpM[k] = malloc(sizeof(size_t) * state_size);
                             }
 
                             StSpM_n *= 2;
@@ -518,10 +519,113 @@ static int queue_pop_ss_hobolth(phdist_t **phdist, struct queue_data *queue_data
         free(v);
     }
 
-    coal_make_phdist(phdist, n_rows, n_cols, *rows, *cols, StSpM, ri, n);
+    coal_make_phdist(phdist, n_rows, n_cols, *rows, *cols, StSpM, ri, state_size);
 }
 
-int queue_init_ss_hobolth(struct queue_data **out, size_t state_size) {
+static int queue_pop_ss_hobolth(phdist_t **phdist, struct queue_data *queue_data, void *args) {
+    vec_entry_t *v;
+    size_t myidx = 0;
+    size_t idx;
+    bst_node_t *idxN;
+    bst_node_t *myidxN;
+    struct queue *queue = queue_data->queue;
+    struct state_hobolth *state = queue_data->state;
+    coal_args_hobolth_t *targs = args;
+
+    size_t state_size = targs->n;
+    
+    size_t vector_size = queue_data->vector_size;
+    
+    bst_node_t *BST = state->BST;
+    size_t ri = state->ri;
+    size_t n_rows = state->n_rows;
+    size_t n_cols = state->n_cols;
+    expanding_arr_t *expanding_rows = state->expanding_rows;
+    expanding_arr_t *expanding_cols = state->expanding_cols;
+    avl_node_t ***rows = (avl_node_t***)expanding_rows->value;
+    avl_node_t ***cols = (avl_node_t***)expanding_cols->value;
+    size_t StSpM_n = state->StSpM_n;
+    size_t **StSpM = state->StSpM;
+
+    while (queue_empty(queue) == 0) {
+        myidxN = queue_dequeue(queue);
+
+        myidx = myidxN->entry;
+        v = (vec_entry_t *) malloc(vector_size);
+        memcpy(v, myidxN->value, vector_size);
+
+        for (vec_entry_t i = 0; i < state_size; i++) {
+            for (vec_entry_t j = i; j < state_size; j++) {
+                if (((i == j && v[i] >= 2) || (i != j && v[i] > 0 && v[j] > 0))) {
+                    ssize_t t = i == j ? v[i] * (v[i] - 1) / 2 : v[i] * v[j];
+
+                    v[i]--;
+                    v[j]--;
+                    v[(i + j + 2) - 1]++;
+
+                    if (!bst_find_or_parent(&idxN, BST, v)) {
+                        vec_entry_t *nv = (vec_entry_t *) malloc(vector_size);
+                        memcpy(nv, v, vector_size);
+
+                        idx = ri;
+
+                        while (ri >= StSpM_n) {
+                            // TODO: Failure
+                            StSpM = realloc(StSpM, sizeof(size_t *) * StSpM_n * 2);
+
+                            for (size_t k = StSpM_n; k < StSpM_n * 2; k++) {
+                                StSpM[k] = malloc(sizeof(size_t) * state_size);
+                            }
+
+                            StSpM_n *= 2;
+                        }
+
+                        memcpy(StSpM[ri], nv, vector_size);
+                        idxN = bst_add(idxN, nv, ri);
+                        queue_enqueue(queue, idxN);
+                        ri = ri + 1;
+                    } else {
+                        idx = idxN->entry;
+                    }
+
+                    v[i]++;
+                    v[j]++;
+                    v[(i + j + 2) - 1]--;
+
+                    expanding_arr_fit(expanding_rows, idx);
+                    expanding_arr_fit(expanding_rows, myidx);
+                    expanding_arr_fit(expanding_cols, idx);
+                    expanding_arr_fit(expanding_cols, myidx);
+
+                    if (avl_insert_or_inc(&((*rows)[myidx]), idx, t)) {
+                        return 1;
+                    }
+
+                    if (avl_insert_or_inc(&((*rows)[myidx]), myidx, -t)) {
+                        return 1;
+                    }
+
+                    if (avl_insert_or_inc(&((*cols)[idx]), myidx, t)) {
+                        return 1;
+                    }
+
+                    if (avl_insert_or_inc(&((*cols)[myidx]), myidx, -t)) {
+                        return 1;
+                    }
+
+                    n_rows = MAX(n_rows, myidx + 1);
+                    n_cols = MAX(n_cols, idx + 1);
+                }
+            }
+        }
+
+        free(v);
+    }
+
+    coal_make_phdist(phdist, n_rows, n_cols, *rows, *cols, StSpM, ri, state_size);
+}
+
+int queue_init_standard_vector(struct queue_data **out, size_t state_size, vec_entry_t n) {
     *out = malloc(sizeof(struct queue_data));
     struct queue *queue = malloc(sizeof(struct queue));
     struct state_hobolth *state = malloc(sizeof(struct state_hobolth));
@@ -550,7 +654,6 @@ int queue_init_ss_hobolth(struct queue_data **out, size_t state_size) {
     cols[0] = malloc(sizeof(avl_node_t) * 1);
     avl_node_create(&(cols[0]), 0, 0, NULL);
 
-    vec_entry_t n = (vec_entry_t)state_size;
     vec_nmemb = state_size;
 
     queue_init(queue, 2);
@@ -598,6 +701,10 @@ int queue_init_ss_hobolth(struct queue_data **out, size_t state_size) {
     (*out)->state = state;
 }
 
+int queue_init_ss_hobolth(struct queue_data **out, size_t state_size) {
+    queue_init_standard_vector(out, state_size, (vec_entry_t)state_size);
+}
+
 int coal_gen_phdist(phdist_t **phdist, size_t state_size) {
     struct queue_data *queue_data;
     queue_init_ss_hobolth(&queue_data, state_size);
@@ -605,6 +712,18 @@ int coal_gen_phdist(phdist_t **phdist, size_t state_size) {
     args.n = state_size;
 
     queue_pop_ss_hobolth(phdist, queue_data, &args);
+
+    return 0;
+}
+
+int coal_gen_phdist_reward(phdist_t **phdist, size_t n, size_t reward_index) {
+    struct queue_data *queue_data;
+    queue_init_standard_vector(&queue_data, n, (vec_entry_t)n);
+    coal_args_compress_t args;
+    args.n = n;
+    args.reward_index = reward_index;
+
+    queue_pop_ss_hobolth_compress(phdist, queue_data, &args);
 
     return 0;
 }
@@ -618,7 +737,6 @@ int d_ph_gen_fun(double **out, size_t from, size_t to, void *args) {
     mat_t *id;
     mat_t *scaled;
     mat_t *p;
-
 
     mat_mul_scalar(&scaled, arguments->reward, 2/arguments->theta);
     mat_identity(&id, arguments->reward->n_rows);

@@ -8,7 +8,7 @@
 int coal_gen_phdist(phdist_t **phdist, size_t state_size);
 int coal_gen_erlang_phdist(phdist_t **phdist, size_t samples);
 int coal_seg_sites(d_dist_t **dist, phdist_t *phdist);
-
+int coal_gen_phdist_reward(phdist_t **phdist, size_t n, size_t reward_index);
 
 typedef struct d_phgen_args {
     mat_t *reward;
@@ -18,6 +18,11 @@ typedef struct d_phgen_args {
 typedef struct coal_args_hobolth_t {
     size_t n;
 } coal_args_hobolth_t;
+
+typedef struct coal_args_compress_t {
+    size_t n;
+    size_t reward_index;
+} coal_args_compress_t;
 
 int d_ph_gen_fun(double **out, size_t from, size_t to, void *args);
 
