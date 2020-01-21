@@ -136,6 +136,53 @@ static bool bst_find_or_parent(bst_node_t **out, bst_node_t *node, vec_entry_t *
 }
 
 
+
+
+
+struct stack {
+    expanding_arr_t *stack;
+    size_t head_index;
+};
+
+static int stack_init(struct stack *stack, size_t nmemb) {
+    if ((stack->stack = malloc(sizeof(expanding_arr_t))) == NULL) {
+        return 1;
+    }
+
+    stack->stack->length = 1;
+    stack->stack->entry_size = sizeof(bst_node_t*);
+    stack->stack->value = malloc(sizeof(bst_node_t**));
+    *stack->stack->value = malloc(sizeof(bst_node_t*) * 1);
+    stack->head_index = 0;
+
+    return 0;
+}
+
+static int stack_destroy(struct stack *stack) {
+    free(*stack->stack->value);
+    free(stack->stack->value);
+    free(stack->stack);
+    free(stack);
+}
+
+
+static void stack_push(struct stack *stack, bst_node_t *entry) {
+    expanding_arr_fit(stack->stack, stack->head_index+2);
+    ((bst_node_t**)*stack->stack->value)[stack->head_index] = entry;
+    stack->head_index++;
+}
+
+static bst_node_t* stack_pop(struct stack *stack) {
+    bst_node_t *entry = ((bst_node_t**)*stack->stack->value)[stack->head_index-1];
+    stack->head_index--;
+
+    return entry;
+}
+
+static int stack_empty(struct stack *stack) {
+    return (stack->head_index == 0);
+}
+
 struct queue {
     bst_node_t **queue;
     bst_node_t **head;
@@ -425,11 +472,20 @@ static int queue_pop_ss_hobolth_compress(phdist_t **phdist, struct queue_data *q
     bst_node_t *idxN;
     bst_node_t *myidxN;
     struct queue *queue = queue_data->queue;
+
+    // TODO: Quick hack, make a stack from the queue
+    struct stack *stack = malloc(sizeof(struct stack));
+    stack_init(stack, 1);
+    bst_node_t *queue1 = queue_dequeue(queue);
+    bst_node_t *queue2 = queue_dequeue(queue);
+    stack_push(stack, queue2);
+    stack_push(stack, queue1);
+
     struct state_hobolth *state = queue_data->state;
     coal_args_compress_t *targs = args;
 
     size_t state_size = targs->n;
-    size_t reward_index = targs->n;
+    size_t reward_index = targs->reward_index;
 
     size_t vector_size = queue_data->vector_size;
 
@@ -444,8 +500,8 @@ static int queue_pop_ss_hobolth_compress(phdist_t **phdist, struct queue_data *q
     size_t StSpM_n = state->StSpM_n;
     size_t **StSpM = state->StSpM;
 
-    while (queue_empty(queue) == 0) {
-        myidxN = queue_dequeue(queue);
+    while (!stack_empty(stack)) {
+        myidxN = stack_pop(stack);
 
         myidx = myidxN->entry;
         v = (vec_entry_t *) malloc(vector_size);
@@ -454,7 +510,14 @@ static int queue_pop_ss_hobolth_compress(phdist_t **phdist, struct queue_data *q
         for (vec_entry_t i = 0; i < state_size; i++) {
             for (vec_entry_t j = i; j < state_size; j++) {
                 if (((i == j && v[i] >= 2) || (i != j && v[i] > 0 && v[j] > 0))) {
-                    ssize_t t = i == j ? v[i] * (v[i] - 1) / 2 : v[i] * v[j];
+                    mat_entry_t t = i == j ? v[i] * (v[i] - 1) / 2 : v[i] * v[j];
+
+                    if (v[reward_index] == 0) {
+                        // TODO Push alpha
+                        
+                    } else {
+                        //t /= v[reward_index];
+                    }
 
                     v[i]--;
                     v[j]--;
@@ -479,7 +542,7 @@ static int queue_pop_ss_hobolth_compress(phdist_t **phdist, struct queue_data *q
 
                         memcpy(StSpM[ri], nv, vector_size);
                         idxN = bst_add(idxN, nv, ri);
-                        queue_enqueue(queue, idxN);
+                        stack_push(stack, idxN);
                         ri = ri + 1;
                     } else {
                         idx = idxN->entry;
