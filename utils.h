@@ -20,4 +20,12 @@
     exit(error_code);                              \
 } while(0)
 
+
+typedef struct expanding_arr {
+    void **value;
+    size_t length;
+    size_t entry_size;
+} expanding_arr_t;
+
+int expanding_arr_fit(expanding_arr_t *arr, size_t min_length);
 #endif

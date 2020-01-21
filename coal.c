@@ -5,6 +5,7 @@
 #include <math.h>
 #include "coal.h"
 #include "bbst.h"
+#include "utils.h"
 
 // TODO: make the entry a pointer not an offset
 
@@ -347,28 +348,6 @@ struct queue_data {
     size_t vector_size;
     void *state;
 };
-
-typedef struct expanding_arr {
-    void **value;
-    size_t length;
-    size_t entry_size;
-} expanding_arr_t;
-
-int expanding_arr_fit(expanding_arr_t *arr, size_t min_length) {
-    while (min_length >= arr->length - 1) {
-        if (((*arr->value) = realloc((*arr->value), arr->entry_size * arr->length * 2)) == NULL) {
-            return 1;
-        }
-
-        // Note: cast to char pointer in order to increment pointer
-        memset((char *)(*arr->value) + (arr->entry_size * arr->length),
-                0, arr->length * arr->entry_size);
-
-        arr->length *= 2;
-    }
-
-    return 0;
-}
 
 static int coal_make_phdist(phdist_t **phdist,
                             size_t n_rows,
