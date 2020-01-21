@@ -84,6 +84,15 @@ void test_gen_erlang() {
 }
 
 
+void test_gen_reward() {
+    phdist_t *phdist;
+    coal_gen_phdist_reward(&phdist, 4, 0);
+    phdist_print_as_matrix(phdist);
+    phdist_print_as_matrix_col(phdist);
+    printf("\n%zu\n", phdist_count_non_zeros(phdist));
+}
+
+
 void test_reward_sites() {
     phdist_t *phdist2;
     coal_gen_phdist(&phdist2, 5);
@@ -185,13 +194,10 @@ void test_inverse() {
     phdist_print_as_matrix(phdist2);
 }
 
-
-
-
 void test_time_seg() {
     phdist_t *phdist;
     time_t t = time(NULL);
-    coal_gen_phdist(&phdist, 20);
+    coal_gen_phdist(&phdist, 10);
     d_dist_t *dist;
     coal_seg_sites(&dist, phdist);
     d_phgen_args_t *args = dist->args;
@@ -210,7 +216,7 @@ void test_time_seg() {
 void test_time_seg_erlang() {
     phdist_t *phdist;
     time_t t = time(NULL);
-    coal_gen_erlang_phdist(&phdist, 20);
+    coal_gen_erlang_phdist(&phdist, 10);
     d_dist_t *dist;
     coal_seg_sites(&dist, phdist);
     d_phgen_args_t *args = dist->args;
@@ -308,10 +314,10 @@ void test_mat_mul() {
 
 
 int main(int argc, char **argv) {
-    test_gen();
-    printf("\n..\n");
-    test_gen_erlang();
-    printf("\n..\n");
+    //test_gen();
+    //printf("\n..\n");
+    //test_gen_erlang();
+    //printf("\n..\n");
     /*//test_clone();
     printf("\n..\n");
     //test_zeroes();
@@ -334,13 +340,15 @@ int main(int argc, char **argv) {
     printf("\n..\n");
     test_seg();
     printf("\n..\n");*/
-    test_time_seg();
-    printf("\n..\n");
-    test_time_seg_erlang();
-    printf("\n..\n");
+    //test_time_seg();
+    //printf("\n..\n");
+    //test_time_seg_erlang();
+    //printf("\n..\n");
     //test_time_mul();
     //printf("\n..\n");
     //test_mat_mul();
     //printf("\n..\n");
+    test_gen_reward();
+    printf("\n..\n");
     return 0;
 }

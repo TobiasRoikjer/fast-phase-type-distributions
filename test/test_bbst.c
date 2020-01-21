@@ -2,23 +2,6 @@
 
 #include "../bbst.h"
 
-static void _avl_print(avl_node_t *node) {
-    if (node == NULL) {
-        return;
-    }
-
-    printf("(%c %u ", node->key, node->entry);
-    _avl_print(node->left);
-    printf(" ");
-    _avl_print(node->right);
-    printf(")");
-}
-
-static void avl_print(avl_node_t *node) {
-    _avl_print(node);
-    printf("\n");
-}
-
 static void testBBSTavl_insert_or_inc1() {
     avl_node_t * root = NULL;
 

@@ -469,54 +469,147 @@ struct state_hobolth {
     size_t **StSpM;
 };
 
-static int queue_pop_ss_hobolth_compress(phdist_t **phdist, struct queue_data *queue_data, void *args) {
-    vec_entry_t *v;
-    size_t myidx = 0;
-    size_t idx;
-    bst_node_t *idxN;
-    bst_node_t *myidxN;
-    struct queue *queue = queue_data->queue;
+struct weighted_edge {
+    size_t to_index;
+    mat_entry_t weight;
+};
 
-    // TODO: Quick hack, make a stack from the queue
-    struct stack *stack = malloc(sizeof(struct stack));
-    stack_init(stack, 1);
-    bst_node_t *queue1 = queue_dequeue(queue);
-    bst_node_t *queue2 = queue_dequeue(queue);
-    stack_push(stack, queue2);
-    stack_push(stack, queue1);
+static int add_edge(expanding_arr_t *expanding_rows, expanding_arr_t *expanding_cols,
+        size_t from, size_t to,
+        mat_entry_t weight) {
+    expanding_arr_fit(expanding_rows, from);
+    expanding_arr_fit(expanding_rows, to);
+    expanding_arr_fit(expanding_cols, from);
+    expanding_arr_fit(expanding_cols, to);
 
-    struct state_hobolth *state = queue_data->state;
-    coal_args_compress_t *targs = args;
+    avl_node_t ***rows = (avl_node_t***) expanding_rows->value;
+    avl_node_t ***cols = (avl_node_t***) expanding_cols->value;
 
-    size_t state_size = targs->n;
-    size_t reward_index = targs->reward_index;
+    fprintf(stderr, "Adding %zu to %zu with weight %f\n",
+            from, to, weight);
+    if (avl_insert_or_inc(&((*rows)[from]), to, weight)) {
+        return 1;
+    }
 
-    size_t vector_size = queue_data->vector_size;
+    fprintf(stderr, "Adding %zu to %zu with weight %f\n",
+            from, from, -weight);
 
-    bst_node_t *BST = state->BST;
-    size_t ri = state->ri;
-    size_t n_rows = state->n_rows;
-    size_t n_cols = state->n_cols;
-    expanding_arr_t *expanding_rows = state->expanding_rows;
-    expanding_arr_t *expanding_cols = state->expanding_cols;
-    avl_node_t ***rows = (avl_node_t***)expanding_rows->value;
-    avl_node_t ***cols = (avl_node_t***)expanding_cols->value;
-    size_t StSpM_n = state->StSpM_n;
-    size_t **StSpM = state->StSpM;
+    if (avl_insert_or_inc(&((*rows)[from]), from, -weight)) {
+        return 1;
+    }
 
-    while (!stack_empty(stack)) {
-        myidxN = stack_pop(stack);
+    if (avl_insert_or_inc(&((*cols)[to]), from, weight)) {
+        return 1;
+    }
 
-        myidx = myidxN->entry;
+    if (avl_insert_or_inc(&((*cols)[from]), from, -weight)) {
+        return 1;
+    }
 
-        expanding_arr_t *set_v = malloc(sizeof(expanding_arr_t));
-        set_v->length = 1;
-        set_v->entry_size = sizeof(vec_entry_t**);
-        set_v->value = malloc(sizeof(vec_entry_t***));
-        *set_v->value = malloc(sizeof(vec_entry_t**) * 1);
+    return 0;
+}
 
-        vec_entry_t *my_v = (vec_entry_t *) malloc(vector_size);
-        memcpy(my_v, myidxN->value, vector_size);
+static int add_or_get_vertex(bst_node_t **out, bst_node_t *bst,
+        vec_entry_t *state, size_t vector_length, size_t potential_new_index) {
+    if (bst_find_or_parent(out, bst, state)) {
+        return 0;
+    } else {
+        vec_entry_t *cloned_state = malloc(sizeof(vec_entry_t) * vector_length);
+        memcpy(cloned_state, state, vector_length);
+
+        *out = bst_add(*out, cloned_state, potential_new_index);
+        return 0;
+    }
+}
+
+static int visit_vertex(bst_node_t **out,
+        vec_entry_t *state,
+        bst_node_t *bst,
+        size_t state_size,
+        size_t graph_size,
+        expanding_arr_t *expanding_rows,
+        expanding_arr_t *expanding_cols,
+        size_t vector_length) {
+    if ((*out = bst_find(bst, state)) != NULL) {
+        return 0;
+    } else {
+        vec_entry_t *v = state;
+        vector_t *weighted_edges;
+        vector_init(&weighted_edges, sizeof(struct weighted_edge), 8);
+
+        for (vec_entry_t i = 0; i < state_size; i++) {
+            for (vec_entry_t j = i; j < state_size; j++) {
+                if (((i == j && v[i] >= 2) || (i != j && v[i] > 0 && v[j] > 0))) {
+                    mat_entry_t t = i == j ? v[i] * (v[i] - 1) / 2 : v[i] * v[j];
+
+                    v[i]--;
+                    v[j]--;
+                    v[(i + j + 2) - 1]++;
+
+                    bst_node_t *new_vertex;
+                    visit_vertex(&new_vertex, v, bst,
+                            state_size, graph_size,
+                            expanding_rows, expanding_cols,
+                            vector_length);
+
+                    //fprintf(stderr, "For ");
+                    v[i]++;
+                    v[j]++;
+                    v[(i + j + 2) - 1]--;
+
+                    //print_vector(v, vector_length);
+                    //fprintf(stderr, " adding: ");
+
+                    v[i]--;
+                    v[j]--;
+                    v[(i + j + 2) - 1]++;
+                    struct weighted_edge* p = vector_add(weighted_edges);
+                    *p =
+                            (struct weighted_edge){
+                                    .to_index = new_vertex->entry,
+                                    .weight = t
+                            };
+                    //fprintf(stderr, "%zu w %f\n", new_vertex->entry, t);
+
+
+                    struct weighted_edge *values2 = vector_get(weighted_edges);
+
+                    /*fprintf(stderr, "Now it is: \n");
+
+                    for (size_t k = 0; k < vector_size(weighted_edges); ++k) {
+                        fprintf(stderr, "\tto %zu w: %f\n", values2[k].to_index, values2[k].weight);
+                    }*/
+
+                    graph_size = MAX(graph_size, new_vertex->entry+1);
+
+                    v[i]++;
+                    v[j]++;
+                    v[(i + j + 2) - 1]--;
+                }
+            }
+        }
+
+        // TODO: Idea: increase graph_size as we iterate?
+
+        add_or_get_vertex(out, bst, state, vector_length, graph_size);
+
+        struct weighted_edge *values = vector_get(weighted_edges);
+
+        //fprintf(stderr, "For ");
+        //print_vector(v, vector_length);
+        //fprintf(stderr, " getting: \n");
+        for (size_t i = 0; i < vector_size(weighted_edges); ++i) {
+            //fprintf(stderr, "\tfrom %zu to %zu w: %f\n", (*out)->entry, values[i].to_index, values[i].weight);
+            add_edge(expanding_rows, expanding_cols,
+                     (*out)->entry, values[i].to_index,
+                     values[i].weight);
+        }
+
+        return 0;
+    }
+}
+
+/* TODO: This
 
         size_t entries = 0;
         struct stack *stack_v = malloc(sizeof(struct stack));
@@ -531,8 +624,8 @@ static int queue_pop_ss_hobolth_compress(phdist_t **phdist, struct queue_data *q
                 for (vec_entry_t i = 0; i < state_size; i++) {
                     for (vec_entry_t j = i; j < state_size; j++) {
                         if (((i == j && v_entry[i] >= 2) || (i != j && v_entry[i] > 0 && v_entry[j] > 0))) {
-                            vec_entry_t *new_entry = (vec_entry_t *) malloc(vector_size);
-                            memcpy(new_entry, v_entry, vector_size);
+                            vec_entry_t *new_entry = (vec_entry_t *) malloc(const_vector_size);
+                            memcpy(new_entry, v_entry, const_vector_size);
                             new_entry[i]--;
                             new_entry[j]--;
                             new_entry[(i + j + 2) - 1]++;
@@ -547,6 +640,9 @@ static int queue_pop_ss_hobolth_compress(phdist_t **phdist, struct queue_data *q
             }
         }
 
+        vector_t *weighted_edges;
+        vector_init(&weighted_edges, sizeof(struct weighted_edge), 8);
+
         fprintf(stderr, "The set for ");
         print_vector(my_v, state_size);
         fprintf(stderr, " is ");
@@ -554,78 +650,46 @@ static int queue_pop_ss_hobolth_compress(phdist_t **phdist, struct queue_data *q
         for (size_t vectors_entry = 0; vectors_entry < entries; vectors_entry++) {
             v = ((vec_entry_t**)(*set_v->value))[vectors_entry];
             print_vector(v, state_size);
-            fprintf(stderr, "\n and: ");
+            fprintf(stderr, "\n and: "); */
 
-            for (vec_entry_t i = 0; i < state_size; i++) {
-                for (vec_entry_t j = i; j < state_size; j++) {
-                    if (((i == j && v[i] >= 2) || (i != j && v[i] > 0 && v[j] > 0))) {
-                        mat_entry_t t = i == j ? v[i] * (v[i] - 1) / 2 : v[i] * v[j];
+static int queue_pop_ss_hobolth_compress(phdist_t **phdist, struct queue_data *queue_data, void *args) {
+    struct queue *queue = queue_data->queue;
 
-                        //t /= v[reward_index];
+    // TODO: Quick hack, make a stack from the queue
+    bst_node_t *absorbing_state = queue_dequeue(queue);
+    bst_node_t *initial_state = queue_dequeue(queue);
 
-                        v[i]--;
-                        v[j]--;
-                        v[(i + j + 2) - 1]++;
+    struct state_hobolth *state = queue_data->state;
+    coal_args_compress_t *targs = args;
 
-                        if (!bst_find_or_parent(&idxN, BST, v)) {
-                            vec_entry_t *nv = (vec_entry_t *) malloc(vector_size);
-                            memcpy(nv, v, vector_size);
+    size_t state_size = targs->n;
+    size_t reward_index = targs->reward_index;
 
-                            idx = ri;
+    size_t const_vector_size = queue_data->vector_size;
+    size_t vector_length = queue_data->vector_length;
 
-                            while (ri >= StSpM_n) {
-                                // TODO: Failure
-                                StSpM = realloc(StSpM, sizeof(size_t *) * StSpM_n * 2);
+    bst_node_t *BST = state->BST;
+    BST = bst_init(absorbing_state->value, 0);
+    size_t ri = state->ri;
+    size_t n_rows = state->n_rows;
+    size_t n_cols = state->n_cols;
+    expanding_arr_t *expanding_rows = state->expanding_rows;
+    expanding_arr_t *expanding_cols = state->expanding_cols;
+    avl_node_t ***rows = (avl_node_t***)expanding_rows->value;
+    avl_node_t ***cols = (avl_node_t***)expanding_cols->value;
+    size_t StSpM_n = state->StSpM_n;
+    size_t **StSpM = state->StSpM;
 
-                                for (size_t k = StSpM_n; k < StSpM_n * 2; k++) {
-                                    StSpM[k] = malloc(sizeof(size_t) * state_size);
-                                }
+    bst_node_t *out;
+    add_or_get_vertex(&out, BST, absorbing_state->value, vector_length,
+            0);
+    //visit_vertex(&out, absorbing_state->value, BST, state_size,
+    //        0, expanding_rows, expanding_cols, vector_length);
 
-                                StSpM_n *= 2;
-                            }
+    visit_vertex(&out, initial_state->value, BST, state_size,
+                 0, expanding_rows, expanding_cols, vector_length);
 
-                            memcpy(StSpM[ri], nv, vector_size);
-                            idxN = bst_add(idxN, nv, ri);
-                            stack_push(stack, idxN);
-                            ri = ri + 1;
-                        } else {
-                            idx = idxN->entry;
-                        }
-
-                        v[i]++;
-                        v[j]++;
-                        v[(i + j + 2) - 1]--;
-
-                        expanding_arr_fit(expanding_rows, idx);
-                        expanding_arr_fit(expanding_rows, myidx);
-                        expanding_arr_fit(expanding_cols, idx);
-                        expanding_arr_fit(expanding_cols, myidx);
-
-                        if (avl_insert_or_inc(&((*rows)[myidx]), idx, t)) {
-                            return 1;
-                        }
-
-                        if (avl_insert_or_inc(&((*rows)[myidx]), myidx, -t)) {
-                            return 1;
-                        }
-
-                        if (avl_insert_or_inc(&((*cols)[idx]), myidx, t)) {
-                            return 1;
-                        }
-
-                        if (avl_insert_or_inc(&((*cols)[myidx]), myidx, -t)) {
-                            return 1;
-                        }
-
-                        n_rows = MAX(n_rows, myidx + 1);
-                        n_cols = MAX(n_cols, idx + 1);
-                    }
-                }
-            }
-        }
-    }
-
-    coal_make_phdist(phdist, n_rows, n_cols, *rows, *cols, StSpM, ri, state_size);
+    coal_make_phdist(phdist, out->entry+1, out->entry+1, *rows, *cols, StSpM, ri, state_size);
 }
 
 static int queue_pop_ss_hobolth(phdist_t **phdist, struct queue_data *queue_data, void *args) {
@@ -698,26 +762,9 @@ static int queue_pop_ss_hobolth(phdist_t **phdist, struct queue_data *queue_data
                     v[j]++;
                     v[(i + j + 2) - 1]--;
 
-                    expanding_arr_fit(expanding_rows, idx);
-                    expanding_arr_fit(expanding_rows, myidx);
-                    expanding_arr_fit(expanding_cols, idx);
-                    expanding_arr_fit(expanding_cols, myidx);
-
-                    if (avl_insert_or_inc(&((*rows)[myidx]), idx, t)) {
-                        return 1;
-                    }
-
-                    if (avl_insert_or_inc(&((*rows)[myidx]), myidx, -t)) {
-                        return 1;
-                    }
-
-                    if (avl_insert_or_inc(&((*cols)[idx]), myidx, t)) {
-                        return 1;
-                    }
-
-                    if (avl_insert_or_inc(&((*cols)[myidx]), myidx, -t)) {
-                        return 1;
-                    }
+                    add_edge(expanding_rows, expanding_cols,
+                                myidx, idx,
+                                t);
 
                     n_rows = MAX(n_rows, myidx + 1);
                     n_cols = MAX(n_cols, idx + 1);
@@ -804,6 +851,7 @@ int queue_init_standard_vector(struct queue_data **out, size_t state_size, vec_e
 
     (*out)->queue = queue;
     (*out)->vector_size = sizeof(vec_entry_t) * n;
+    (*out)->vector_length = n;
     (*out)->state = state;
 }
 
