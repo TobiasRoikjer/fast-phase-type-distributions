@@ -416,186 +416,21 @@ int coal_gen_erlang_phdist(phdist_t **phdist, size_t samples) {
     return 0;
 }
 
-int coal_gen_phdist(phdist_t **phdist, size_t state_size) {
-    avl_node_t** rows;
-    avl_node_t** cols;
+struct queue_data {
+    struct queue *queue;
+    size_t vector_length;
+    size_t vector_size;
+    void *state;
+};
 
-    size_t avl_node_arr_len = 1;
-
-    rows = malloc(sizeof(avl_node_t*));
-    cols = malloc(sizeof(avl_node_t*));
-    rows[0] = NULL;
-    cols[0] = NULL;
-
-    vec_entry_t n = (vec_entry_t)state_size;
-
-    size_t SIZE = sizeof(vec_entry_t) * n;
-    vec_nmemb = state_size;
-
-    struct queue queue;
-
-    queue_init(&queue, 2);
-
-    vec_entry_t *initial = (vec_entry_t*)calloc(n, sizeof(vec_entry_t));
-    initial[0] = n;
-
-    vec_entry_t *mrca = (vec_entry_t*)calloc(n, sizeof(vec_entry_t));
-    mrca[n-1] = 1;
-
-    size_t StSpM_n = 2;
-    size_t **StSpM;
-
-    if ((StSpM = malloc(sizeof(size_t*)*StSpM_n)) == NULL) {
-        return 1;
-    }
-
-    /*if ((rows = calloc(2, sizeof(avl_node_t*))) == NULL) {
-        return 1;
-    }
-
-    if ((cols = calloc(nSt, sizeof(avl_node_t*))) == NULL) {
-        return 1;
-    }*/
-
-    StSpM[0] = malloc(sizeof(size_t) * state_size);
-    StSpM[1] = malloc(sizeof(size_t) * state_size);
-
-    /*for (size_t r = 0; r < 100; r++) {
-        if ((StSpM[r] = malloc(sizeof(size_t) * state_size)) == NULL) {
-            return 1;
-        }
-    }*/
-
-    bst_node_t *BST = bst_init(mrca, 0);
-    bst_node_t *BST_initial = bst_add(BST, initial, 1);
-
-    queue_enqueue(&queue, BST);
-    queue_enqueue(&queue, BST_initial);
-    memcpy(StSpM[0], mrca, state_size);
-    memcpy(StSpM[1], initial, state_size);
-
-    vec_entry_t *v;
-    size_t myidx = 0;
-    size_t idx;
-    bst_node_t *idxN;
-    bst_node_t *myidxN;
-
-    // Set n_rows and n_cols to 1, as the MRCA state does not
-    // increase these.
-    size_t n_rows = 1;
-    size_t n_cols = 1;
-
-    // Set ri to 2 as we add two nodes: Initial and MRCA
-    size_t ri = 2;
-
-    while (queue_empty(&queue) == 0) {
-        //queue_print(&queue);
-        myidxN = queue_dequeue(&queue);
-
-        myidx = myidxN->entry;
-        v = (vec_entry_t*)malloc(SIZE);
-        memcpy(v, myidxN->value, SIZE);
-
-        for (vec_entry_t i = 0; i < n; i++) {
-            for (vec_entry_t j = i; j < n; j++) {
-                if (((i == j && v[i] >= 2) || (i != j && v[i] > 0 && v[j] > 0))) {
-                    ssize_t t = i == j ? v[i]*(v[i]-1)/2 : v[i]*v[j];
-
-                    v[i]--;
-                    v[j]--;
-                    v[(i + j + 2) - 1]++;
-
-                    if (!bst_find_or_parent(&idxN, BST, v)) {
-                        vec_entry_t *nv = (vec_entry_t*)malloc(SIZE);
-                        memcpy(nv, v, SIZE);
-
-                        // TODO: Is this needed?
-                        for (vec_entry_t k = 0; k < n; k++) {
-                            nv[k] = v[k];
-                        }
-
-                        idx = ri;
-
-                        while (ri >= StSpM_n) {
-                            // TODO: Failure
-                            StSpM = realloc(StSpM, sizeof(size_t*)*StSpM_n*2);
-
-                            //memset(StSpM+StSpM_n, 0, StSpM_n * sizeof(size_t*));
-
-                            for (size_t i = StSpM_n; i < StSpM_n * 2; i++) {
-                              StSpM[i] = malloc(sizeof(size_t) * state_size);
-                            }
-
-                            StSpM_n *= 2;
-                        }
-
-                        memcpy(StSpM[ri], nv, SIZE);
-                        idxN = bst_add(idxN, nv, ri);
-                        queue_enqueue(&queue, idxN);
-                        ri = ri + 1;
-                    } else {
-                        idx = idxN->entry;
-                    }
-
-                    v[i]++;
-                    v[j]++;
-                    v[(i + j + 2) - 1]--;
-
-                    while (myidx >= avl_node_arr_len - 1 || idx >= avl_node_arr_len - 1) {
-                        // TODO: Failure
-                        if ((rows = realloc(rows, sizeof(avl_node_t*)*avl_node_arr_len*2)) == NULL) {
-                            return 1;
-                        }
-
-                        if ((cols = realloc(cols, sizeof(avl_node_t*)*avl_node_arr_len*2)) == NULL) {
-                            return 1;
-                        }
-
-                        memset(rows+avl_node_arr_len, 0, avl_node_arr_len * sizeof(avl_node_t*));
-                        memset(cols+avl_node_arr_len, 0, avl_node_arr_len * sizeof(avl_node_t*));
-
-                        avl_node_arr_len *= 2;
-                    }
-
-                    if (avl_insert_or_inc(&(rows[myidx]), idx, t)) {
-                        return 1;
-                    }
-
-                    if (avl_insert_or_inc(&(rows[myidx]), myidx, -t)) {
-                        return 1;
-                    }
-
-
-                    if (avl_insert_or_inc(&(cols[idx]), myidx, t)) {
-                        return 1;
-                    }
-
-                    if (avl_insert_or_inc(&(cols[myidx]), myidx, -t)) {
-                        return 1;
-                    }
-
-                    n_rows = MAX(n_rows, myidx+1);
-                    n_cols = MAX(n_cols, idx+1);
-                }
-            }
-        }
-
-        free(v);
-    }
-
-    // TODO free some more
-
-    if (avl_insert_or_inc(&(rows[n_rows]), n_rows, -1)) {
-        return 1;
-    }
-
-    if (avl_insert_or_inc(&(cols[n_rows]), n_rows, -1)) {
-        return 1;
-    }
-
-    n_rows++;
-
-    ret:
+static int coal_make_phdist(phdist_t **phdist,
+                            size_t n_rows,
+                            size_t n_cols,
+                            avl_node_t **rows,
+                            avl_node_t **cols,
+                            size_t **StSpM,
+                            size_t ri,
+                            size_t state_size) {
     *phdist = malloc(sizeof(phdist_t));
 
     mat_malloc(&((*phdist)->si_mat), n_rows, n_cols);
@@ -641,6 +476,219 @@ int coal_gen_phdist(phdist_t **phdist, size_t state_size) {
     (*phdist)->n_rw_rows = ri - 1;
     // Do not include the n-ton, therefore state_size - 1
     (*phdist)->n_rw_cols = state_size;
+    
+    return 0;
+}
+
+struct state_hobolth {
+    bst_node_t *BST;
+    size_t ri;
+    size_t n_rows;
+    size_t n_cols;
+    size_t avl_node_arr_len;
+    avl_node_t **rows;
+    avl_node_t **cols;
+    size_t StSpM_n;
+    size_t **StSpM;
+};
+
+static int queue_pop_ss_hobolth(phdist_t **phdist, struct queue_data *queue_data, void *args) {
+    vec_entry_t *v;
+    size_t myidx = 0;
+    size_t idx;
+    bst_node_t *idxN;
+    bst_node_t *myidxN;
+    struct queue *queue = queue_data->queue;
+    struct state_hobolth *state = queue_data->state;
+    coal_args_hobolth_t *targs = args;
+
+    size_t n = targs->n;
+    
+    size_t vector_size = queue_data->vector_size;
+    
+    bst_node_t *BST = state->BST;
+    size_t ri = state->ri;
+    size_t n_rows = state->n_rows;
+    size_t n_cols = state->n_cols;
+    size_t avl_node_arr_len = state->avl_node_arr_len;
+    avl_node_t **rows = state->rows;
+    avl_node_t **cols = state->cols;
+    size_t StSpM_n = state->StSpM_n;
+    size_t **StSpM = state->StSpM;
+
+    while (queue_empty(queue) == 0) {
+        myidxN = queue_dequeue(queue);
+
+        myidx = myidxN->entry;
+        v = (vec_entry_t *) malloc(vector_size);
+        memcpy(v, myidxN->value, vector_size);
+
+        for (vec_entry_t i = 0; i < n; i++) {
+            for (vec_entry_t j = i; j < n; j++) {
+                if (((i == j && v[i] >= 2) || (i != j && v[i] > 0 && v[j] > 0))) {
+                    ssize_t t = i == j ? v[i] * (v[i] - 1) / 2 : v[i] * v[j];
+
+                    v[i]--;
+                    v[j]--;
+                    v[(i + j + 2) - 1]++;
+
+                    if (!bst_find_or_parent(&idxN, BST, v)) {
+                        vec_entry_t *nv = (vec_entry_t *) malloc(vector_size);
+                        memcpy(nv, v, vector_size);
+
+                        // TODO: Is this needed?
+                        for (vec_entry_t k = 0; k < n; k++) {
+                            nv[k] = v[k];
+                        }
+
+                        idx = ri;
+
+                        while (ri >= StSpM_n) {
+                            // TODO: Failure
+                            StSpM = realloc(StSpM, sizeof(size_t *) * StSpM_n * 2);
+
+                            for (size_t i = StSpM_n; i < StSpM_n * 2; i++) {
+                                StSpM[i] = malloc(sizeof(size_t) * n);
+                            }
+
+                            StSpM_n *= 2;
+                        }
+
+                        memcpy(StSpM[ri], nv, vector_size);
+                        idxN = bst_add(idxN, nv, ri);
+                        queue_enqueue(queue, idxN);
+                        ri = ri + 1;
+                    } else {
+                        idx = idxN->entry;
+                    }
+
+                    v[i]++;
+                    v[j]++;
+                    v[(i + j + 2) - 1]--;
+
+                    while (myidx >= avl_node_arr_len - 1 || idx >= avl_node_arr_len - 1) {
+                        // TODO: Failure
+                        if ((rows = realloc(rows, sizeof(avl_node_t *) * avl_node_arr_len * 2)) == NULL) {
+                            return 1;
+                        }
+
+                        if ((cols = realloc(cols, sizeof(avl_node_t *) * avl_node_arr_len * 2)) == NULL) {
+                            return 1;
+                        }
+
+                        memset(rows + avl_node_arr_len, 0, avl_node_arr_len * sizeof(avl_node_t *));
+                        memset(cols + avl_node_arr_len, 0, avl_node_arr_len * sizeof(avl_node_t *));
+
+                        avl_node_arr_len *= 2;
+                    }
+
+                    if (avl_insert_or_inc(&(rows[myidx]), idx, t)) {
+                        return 1;
+                    }
+
+                    if (avl_insert_or_inc(&(rows[myidx]), myidx, -t)) {
+                        return 1;
+                    }
+
+
+                    if (avl_insert_or_inc(&(cols[idx]), myidx, t)) {
+                        return 1;
+                    }
+
+                    if (avl_insert_or_inc(&(cols[myidx]), myidx, -t)) {
+                        return 1;
+                    }
+
+                    n_rows = MAX(n_rows, myidx + 1);
+                    n_cols = MAX(n_cols, idx + 1);
+                }
+            }
+        }
+
+        free(v);
+    }
+
+    if (avl_insert_or_inc(&(rows[n_rows]), n_rows, -1)) {
+        return 1;
+    }
+
+    if (avl_insert_or_inc(&(cols[n_rows]), n_rows, -1)) {
+        return 1;
+    }
+
+    n_rows++;
+    
+    coal_make_phdist(phdist, n_rows, n_cols, rows, cols, StSpM, ri, n);
+}
+
+int queue_init_ss_hobolth(struct queue_data **out, size_t state_size) {
+    *out = malloc(sizeof(struct queue_data));
+    struct queue *queue = malloc(sizeof(struct queue));
+    struct state_hobolth *state = malloc(sizeof(struct state_hobolth));
+
+    avl_node_t** rows;
+    avl_node_t** cols;
+
+    rows = malloc(sizeof(avl_node_t*));
+    cols = malloc(sizeof(avl_node_t*));
+    rows[0] = NULL;
+    cols[0] = NULL;
+
+    vec_entry_t n = (vec_entry_t)state_size;
+
+    vec_nmemb = state_size;
+
+    queue_init(queue, 2);
+
+    vec_entry_t *initial = (vec_entry_t*)calloc(n, sizeof(vec_entry_t));
+    initial[0] = n;
+
+    vec_entry_t *mrca = (vec_entry_t*)calloc(n, sizeof(vec_entry_t));
+    mrca[n-1] = 1;
+
+    size_t StSpM_n = 2;
+    size_t **StSpM;
+
+    if ((StSpM = malloc(sizeof(size_t*)*StSpM_n)) == NULL) {
+        return 1;
+    }
+
+    StSpM[0] = malloc(sizeof(size_t) * state_size);
+    StSpM[1] = malloc(sizeof(size_t) * state_size);
+
+    bst_node_t *BST = bst_init(mrca, 0);
+    bst_node_t *BST_initial = bst_add(BST, initial, 1);
+
+    queue_enqueue(queue, BST);
+    queue_enqueue(queue, BST_initial);
+    memcpy(StSpM[0], mrca, state_size);
+    memcpy(StSpM[1], initial, state_size);
+
+    // Set n_rows and n_cols to 1, as the MRCA state does not
+    // increase these.
+    state->n_rows = 1;
+    state->n_cols = 1;
+    // Set ri to 2 as we add two nodes: Initial and MRCA
+    state->ri = 2;
+    state->BST = BST;
+    state->avl_node_arr_len = 1;
+    state->rows = rows;
+    state->cols = cols;
+    state->StSpM_n = StSpM_n;
+    state->StSpM = StSpM;
+
+    (*out)->queue = queue;
+    (*out)->vector_size = sizeof(vec_entry_t) * n;
+    (*out)->state = state;
+}
+
+int coal_gen_phdist(phdist_t **phdist, size_t state_size) {
+    struct queue_data *queue_data;
+    queue_init_ss_hobolth(&queue_data, state_size);
+    struct coal_args_hobolth_t args;
+    args.n = state_size;
+
+    queue_pop_ss_hobolth(phdist, queue_data, &args);
 
     return 0;
 }

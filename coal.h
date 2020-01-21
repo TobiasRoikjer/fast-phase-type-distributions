@@ -15,6 +15,10 @@ typedef struct d_phgen_args {
     double theta;
 } d_phgen_args_t;
 
+typedef struct coal_args_hobolth_t {
+    size_t n;
+} coal_args_hobolth_t;
+
 int d_ph_gen_fun(double **out, size_t from, size_t to, void *args);
 
 #endif //AMAZEPHASE_COAL_H
