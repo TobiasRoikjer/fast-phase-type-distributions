@@ -57,6 +57,125 @@ void *vector_get(vector_t *vector) {
     return *vector->expanding_arr->value;
 }
 
-size_t vector_size(vector_t *vector) {
+size_t vector_length(vector_t *vector) {
     return vector->head_index;
+}
+
+int graph_node_create(graph_node_t **node, size_t data_size) {
+    *node = malloc(sizeof(graph_node_t) + data_size);
+    vector_init(&(*node)->edges, sizeof(weighted_edge_t), 1);
+    return 0;
+}
+
+int graph_node_destroy(graph_node_t *node) {
+    // TODO
+}
+
+int graph_add_edge(graph_node_t *from, graph_node_t *to, double weight) {
+    *((weighted_edge_t*)(vector_add(from->edges))) =
+            (weighted_edge_t) {.node = to, .weight = weight};
+
+    return 0;
+}
+
+inline size_t graph_get_no_children(graph_node_t *node) {
+    return vector_length(node->edges);
+}
+
+int queue_create(queue_t **queue, size_t nmemb) {
+    *queue = malloc(sizeof(queue_t));
+    
+    if (((*queue)->queue = malloc(sizeof(void*)*nmemb)) == NULL) {
+        return 1;
+    }
+
+    (*queue)->head = (*queue)->queue;
+    (*queue)->tail = (*queue)->queue;
+    (*queue)->size = nmemb;
+    (*queue)->bound = (*queue)->queue + (*queue)->size;
+    memset((*queue)->queue, 0, (*queue)->size *sizeof(void*));
+
+    return 0;
+}
+
+int queue_destroy(queue_t *queue) {
+    free(queue->queue);
+    return 0;
+}
+
+/*void queue_print(queue_t *queue) {
+    fprintf(stderr, "Queue: ");
+
+    void **i = queue->queue;
+    size_t j = 0;
+
+    while (i < queue->queue + queue->size) {
+        if (*i != NULL) {
+            if (i == queue->head) {
+                fprintf(stderr, "h%zu, ", (*i)->entry);
+            } else if (i == queue->tail) {
+                fprintf(stderr, "t%zu, ", (*i)->entry);
+            } else {
+                fprintf(stderr, "%zu, ", (*i)->entry);
+            }
+        } else {
+            if (i == queue->head) {
+                fprintf(stderr, "h_, ");
+            } else if (i == queue->tail) {
+                fprintf(stderr, "t_, ");
+            } else {
+                fprintf(stderr, "_, ");
+            }
+        }
+
+        i++;
+        j++;
+    }
+
+    fprintf(stderr, "\n");
+}*/
+
+int queue_enqueue(queue_t *queue, void *entry) {
+    *(queue->tail) = entry;
+
+    queue->tail++;
+
+    if (queue->tail == queue->bound) {
+        queue->tail = queue->queue;
+    }
+
+    if (queue->tail == queue->head) {
+        size_t head_dist = queue->size - (queue->head - queue->queue);
+        size_t head_offset = queue->head - queue->queue;
+        size_t tail_offset = queue->tail - queue->queue;
+        queue->queue = realloc(queue->queue, queue->size * 2 *sizeof(void**));
+
+        memcpy(queue->queue + head_offset + queue->size,
+                queue->queue + head_offset,
+                head_dist * sizeof(void**));
+
+        queue->tail = queue->queue + tail_offset;
+
+        queue->head = queue->queue + queue->size + head_offset;
+        queue->size *= 2;
+        queue->bound = queue->queue + queue->size;
+    }
+    
+    return 0;
+}
+
+void* queue_dequeue(queue_t *queue) {
+    void *entry = *(queue->head);
+    *(queue->head) = NULL;
+    queue->head++;
+
+    if (queue->head == queue->bound) {
+        queue->head = queue->queue;
+    }
+
+    return entry;
+}
+
+int queue_empty(queue_t *queue) {
+    return (queue->head == queue->tail);
 }

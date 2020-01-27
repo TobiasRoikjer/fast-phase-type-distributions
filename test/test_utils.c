@@ -23,7 +23,7 @@ static void test_vector() {
 
     uint32_t *values = vector_get(vector);
 
-    for (size_t i = 0; i < vector_size(vector); ++i) {
+    for (size_t i = 0; i < vector_length(vector); ++i) {
         printf("%"PRIu32",", values[i]);
     }
 
@@ -49,17 +49,91 @@ static void test_vector2() {
 
     struct test *values = vector_get(vector);
 
-    for (size_t i = 0; i < vector_size(vector); ++i) {
+    for (size_t i = 0; i < vector_length(vector); ++i) {
         printf("%zu %zu, ", values[i].a, values[i].b);
     }
 
     printf("\n");
 }
 
+struct data {
+    size_t foo;
+    char t;
+};
+
+static void print_graph_node(graph_node_t *node) {
+    weighted_edge_t *values = vector_get(node->edges);
+
+    printf("Node data %zu %c\n", ((struct data*)(&node->data))->foo,
+           ((struct data*)(&node->data))->t);
+
+    for (size_t i = 0; i < vector_length(node->edges); i++) {
+        printf("Edge weight %f node data %zu %c\n", values[i].weight,
+                ((struct data*)(&values[i].node->data))->foo,
+               ((struct data*)(&values[i].node->data))->t);
+    }
+
+    printf("\n");
+}
+
+static void test_graph() {
+    graph_node_t *A;
+    graph_node_t *B;
+    graph_node_t *C;
+    graph_node_t *D;
+
+
+    graph_node_create(&A, sizeof(struct data));
+    graph_node_create(&B, sizeof(struct data));
+    graph_node_create(&C, sizeof(struct data));
+    graph_node_create(&D, sizeof(struct data));
+    ((struct data*)(&A->data))->foo = 1;
+    ((struct data*)(&A->data))->t = 'A';
+    ((struct data*)(&B->data))->foo = 2;
+    ((struct data*)(&B->data))->t = 'B';
+    ((struct data*)(&C->data))->foo = 3;
+    ((struct data*)(&C->data))->t = 'C';
+    ((struct data*)(&D->data))->foo = 4;
+    ((struct data*)(&D->data))->t = 'D';
+
+    graph_add_edge(A, B, 1);
+    graph_add_edge(A, C, 2);
+    graph_add_edge(C, B, 3);
+    graph_add_edge(B, D, 4);
+
+    print_graph_node(A);
+    print_graph_node(B);
+    print_graph_node(C);
+    print_graph_node(D);
+}
+
+static void test_queue() {
+    queue_t *queue;
+    queue_create(&queue, 1);
+    char *A = malloc(sizeof(char));
+    *A = 'A';
+    char *B = malloc(sizeof(char));;
+    *B = 'B';
+    char *C = malloc(sizeof(char));;
+    *C = 'C';
+    char *D = malloc(sizeof(char));;
+    *D = 'D';
+    
+    queue_enqueue(queue, A);
+    queue_enqueue(queue, B);
+    queue_enqueue(queue, C);
+    printf("%c" , *(char*)queue_dequeue(queue));
+    printf("%c" , *(char*)queue_dequeue(queue));
+    queue_enqueue(queue, D);
+    printf("%c" , *(char*)queue_dequeue(queue));
+    printf("%c" , *(char*)queue_dequeue(queue));
+}
 
 int main(int argc, char **argv) {
     test_vector();
     test_vector2();
+    test_graph();
+    test_queue();
 
     return 0;
 }

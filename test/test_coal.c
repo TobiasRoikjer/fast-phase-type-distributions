@@ -85,8 +85,10 @@ void test_gen_erlang() {
 
 
 void test_gen_reward() {
+    coal_graph_node_t *graph;
     phdist_t *phdist;
-    coal_gen_phdist_reward(&phdist, 4, 0);
+    coal_gen_graph_reward(&graph, 5, 0);
+    coal_graph_as_phdist(&phdist, graph);
     phdist_print_as_matrix(phdist);
     phdist_print_as_matrix_col(phdist);
     printf("\n%zu\n", phdist_count_non_zeros(phdist));

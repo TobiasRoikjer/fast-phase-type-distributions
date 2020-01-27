@@ -40,6 +40,35 @@ typedef struct vector {
 int vector_init(vector_t **vector, size_t entry_size, size_t initial_size);
 void *vector_add(vector_t *vector);
 void *vector_get(vector_t *vector);
-size_t vector_size(vector_t *vector);
+size_t vector_length(vector_t *vector);
+
+typedef struct {
+    vector_t *edges;
+    char data[];
+} graph_node_t;
+
+
+typedef struct {
+    graph_node_t *node;
+    double weight;
+} weighted_edge_t;
+
+int graph_node_create(graph_node_t **node, size_t data_size);
+int graph_node_destroy(graph_node_t *);
+int graph_add_edge(graph_node_t *from, graph_node_t *to, double weight);
+
+typedef struct {
+    void **queue;
+    void **head;
+    void **tail;
+    size_t size;
+    void **bound;
+} queue_t;
+
+int queue_create(queue_t **queue, size_t nmemb);
+int queue_destroy(queue_t *queue);
+int queue_enqueue(queue_t *queue, void *entry);
+void* queue_dequeue(queue_t *queue);
+int queue_empty(queue_t *queue);
 
 #endif
