@@ -87,11 +87,21 @@ void test_gen_erlang() {
 void test_gen_reward() {
     coal_graph_node_t *graph;
     phdist_t *phdist;
-    coal_gen_graph_reward(&graph, 5, 0);
+    coal_gen_graph_reward(&graph, 4, 0);
     coal_graph_as_phdist(&phdist, graph);
     phdist_print_as_matrix(phdist);
     phdist_print_as_matrix_col(phdist);
     printf("\n%zu\n", phdist_count_non_zeros(phdist));
+}
+
+void test_exp_reward() {
+    coal_graph_node_t *graph;
+    phdist_t *phdist;
+    coal_gen_graph_reward(&graph, 10, 0);
+
+    for (size_t i = 0; i < 10; i++) {
+        printf("Expected %zu: %f\n", i, coal_mph_expected(graph, i));
+    }
 }
 
 
@@ -351,6 +361,8 @@ int main(int argc, char **argv) {
     //test_mat_mul();
     //printf("\n..\n");
     test_gen_reward();
+    printf("\n..\n");
+    test_exp_reward();
     printf("\n..\n");
     return 0;
 }

@@ -88,15 +88,15 @@ static bst_node_t * bst_add(bst_node_t * rootptr, vec_entry_t* new_value, size_t
     return n;
 }
 
-static size_t vec_nmemb;
-
-static inline bool vector_eq(vec_entry_t* a, vec_entry_t* b) {
+static inline bool vector_eq(vec_entry_t* a, vec_entry_t* b,
+        const size_t vec_nmemb) {
     return (memcmp(a, b, sizeof(vec_entry_t) * vec_nmemb)) == 0;
 }
 
-static bst_node_t * bst_find(bst_node_t *node, vec_entry_t *find_value) {
+static bst_node_t * bst_find(bst_node_t *node, vec_entry_t *find_value,
+                                const size_t vec_nmemb) {
     while (node != NULL) {
-        if (vector_eq(node->value, find_value)) {
+        if (vector_eq(node->value, find_value, vec_nmemb)) {
             return node;
         }
 
@@ -114,9 +114,10 @@ static bst_node_t * bst_find(bst_node_t *node, vec_entry_t *find_value) {
 // Returns true if found, returns false if potential new parent found
 static bool bst_find_or_parent(bst_node_t **out,
         bst_node_t *node,
-        vec_entry_t *find_value) {
+        vec_entry_t *find_value,
+        const size_t vec_nmemb) {
     while (true) {
-        if (vector_eq(node->value, find_value)) {
+        if (vector_eq(node->value, find_value, vec_nmemb)) {
             *out = node;
             return true;
         }
@@ -510,8 +511,9 @@ static int add_edge(expanding_arr_t *expanding_rows, expanding_arr_t *expanding_
 }
 
 static int add_or_get_vertex(bst_node_t **out, bst_node_t *bst,
-        vec_entry_t *state, size_t vector_length, size_t potential_new_index) {
-    if (bst_find_or_parent(out, bst, state)) {
+        vec_entry_t *state, size_t vector_length, size_t potential_new_index,
+        const size_t vec_nmemb) {
+    if (bst_find_or_parent(out, bst, state, vec_nmemb)) {
         return 0;
     } else {
         vec_entry_t *cloned_state = malloc(sizeof(vec_entry_t) * vector_length);
@@ -534,10 +536,11 @@ static int visit_vertex(coal_graph_node_t **out,
                         vec_entry_t *state,
                         bst_node_t *bst,
                         size_t state_size,
-                        size_t vector_length) {
+                        size_t vector_length,
+                        const size_t vec_nmemb) {
     bst_node_t *bst_node;
 
-    if ((bst_node = (bst_find(bst, state))) != NULL) {
+    if ((bst_node = (bst_find(bst, state, vec_nmemb))) != NULL) {
         *out = bst_node->graph_node;
         return 0;
     } else {
@@ -568,7 +571,8 @@ static int visit_vertex(coal_graph_node_t **out,
                     visit_vertex(&new_vertex,
                             v, bst,
                             state_size,
-                            vector_length);
+                            vector_length,
+                            vec_nmemb);
 
                     //fprintf(stderr, "To ");
 
@@ -667,42 +671,26 @@ static void print_graph_node(coal_graph_node_t *node, size_t vec_length, size_t 
     }
 }
 
-static int _queue_pop_ss_hobolth_compress(coal_graph_node_t **graph, struct _queue_data *_queue_data, void *args) {
-    struct _queue *_queue = _queue_data->_queue;
-
-    // TODO: Quick hack, make a stack from the _queue
-    bst_node_t *absorbing_state = _queue_de_queue(_queue);
-    bst_node_t *initial_state = _queue_de_queue(_queue);
-
-    struct state_hobolth *state = _queue_data->state;
+static int build_coal_graph(coal_graph_node_t **graph, void *args) {
     coal_args_compress_t *targs = args;
 
     size_t state_size = targs->n;
-    size_t reward_index = targs->reward_index;
 
-    size_t const_vector_size = _queue_data->vector_size;
-    size_t vector_length = _queue_data->vector_length;
+    vec_entry_t *initial = (vec_entry_t*)calloc(state_size, sizeof(vec_entry_t));
+    initial[0] = state_size;
 
-    bst_node_t *BST = state->BST;
-    BST = bst_init(absorbing_state->value, 0);
-    size_t ri = state->ri;
-    size_t n_rows = state->n_rows;
-    size_t n_cols = state->n_cols;
-    expanding_arr_t *expanding_rows = state->expanding_rows;
-    expanding_arr_t *expanding_cols = state->expanding_cols;
-    avl_node_t ***rows = (avl_node_t***)expanding_rows->value;
-    avl_node_t ***cols = (avl_node_t***)expanding_cols->value;
-    size_t StSpM_n = state->StSpM_n;
-    size_t **StSpM = state->StSpM;
+    vec_entry_t *mrca = (vec_entry_t*)calloc(state_size, sizeof(vec_entry_t));
+    mrca[state_size-1] = 1;
 
-    bst_node_t *out;
     coal_graph_node_t *absorbing_vertex;
+    coal_graph_node_create(&absorbing_vertex, mrca, 0.0f);
 
-    coal_graph_node_create(&absorbing_vertex, absorbing_state->value, 0.0f);
+    bst_node_t *BST = bst_init(mrca, (size_t)absorbing_vertex);
 
-    BST = bst_init(absorbing_state->value, (size_t)absorbing_vertex);
-    visit_vertex(graph, initial_state->value, BST, state_size,vector_length);
-    //print_graph_node(*graph, vector_length, 0);
+    visit_vertex(graph, initial, BST, state_size, state_size,
+            state_size);
+
+    (*graph)->data.alpha = 1.0f;
 
     return 0;
 }
@@ -725,7 +713,6 @@ int coal_graph_as_phdist(phdist_t **phdist, coal_graph_node_t *graph) {
     size_t index = 0;
     queue_enqueue(queue, get_abs_vertex(graph));
     queue_enqueue(queue, graph);
-    queue_enqueue(revisit_queue, graph);
 
     while(!queue_empty(queue)) {
         coal_graph_node_t *node = queue_dequeue(queue);
@@ -836,6 +823,7 @@ static int _queue_pop_ss_hobolth(phdist_t **phdist, struct _queue_data *_queue_d
     size_t state_size = targs->n;
     
     size_t vector_size = _queue_data->vector_size;
+    const size_t vec_nmemb = _queue_data->vector_length;
     
     bst_node_t *BST = state->BST;
     size_t ri = state->ri;
@@ -864,7 +852,7 @@ static int _queue_pop_ss_hobolth(phdist_t **phdist, struct _queue_data *_queue_d
                     v[j]--;
                     v[(i + j + 2) - 1]++;
 
-                    if (!bst_find_or_parent(&idxN, BST, v)) {
+                    if (!bst_find_or_parent(&idxN, BST, v, vec_nmemb)) {
                         vec_entry_t *nv = (vec_entry_t *) malloc(vector_size);
                         memcpy(nv, v, vector_size);
 
@@ -938,8 +926,6 @@ int _queue_init_standard_vector(struct _queue_data **out, size_t state_size, vec
     cols[0] = malloc(sizeof(avl_node_t) * 1);
     avl_node_create(&(cols[0]), 0, 0, NULL);
 
-    vec_nmemb = state_size;
-
     _queue_init(_queue, 2);
 
     vec_entry_t *initial = (vec_entry_t*)calloc(n, sizeof(vec_entry_t));
@@ -1002,13 +988,11 @@ int coal_gen_phdist(phdist_t **phdist, size_t state_size) {
 }
 
 int coal_gen_graph_reward(coal_graph_node_t **graph, size_t n, size_t reward_index) {
-    struct _queue_data *_queue_data;
-    _queue_init_standard_vector(&_queue_data, n, (vec_entry_t)n);
     coal_args_compress_t args;
     args.n = n;
     args.reward_index = reward_index;
 
-    _queue_pop_ss_hobolth_compress(graph, _queue_data, &args);
+    build_coal_graph(graph, &args);
 
     return 0;
 }
@@ -1109,4 +1093,29 @@ int coal_seg_sites(d_dist_t **dist, phdist_t *phdist) {
 
 
     return 0;
+}
+
+double coal_mph_expected(coal_graph_node_t *graph, size_t reward_index) {
+    weighted_edge_t *values = vector_get(graph->edges);
+
+    double rate = 0;
+    double sum = 0;
+
+    for (size_t i = 0; i < vector_length(graph->edges); i++) {
+        // Sum the rates
+        rate += values[i].weight;
+    }
+
+    for (size_t i = 0; i < vector_length(graph->edges); i++) {
+        double prob = values[i].weight / rate;
+        sum += prob * coal_mph_expected((coal_graph_node_t*) values[i].node,
+                reward_index);
+    }
+
+    if (rate != 0) {
+        double exp = 1 / rate;
+        sum += exp * (double)graph->data.state[reward_index];
+    }
+
+    return sum;
 }

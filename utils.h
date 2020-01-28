@@ -47,7 +47,6 @@ typedef struct {
     char data[];
 } graph_node_t;
 
-
 typedef struct {
     graph_node_t *node;
     double weight;

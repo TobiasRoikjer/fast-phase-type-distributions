@@ -53,7 +53,7 @@ void *vector_add(vector_t *vector) {
     return *p + vector->head_index++ * vector->expanding_arr->entry_size;
 }
 
-void *vector_get(vector_t *vector) {
+inline void *vector_get(vector_t *vector) {
     return *vector->expanding_arr->value;
 }
 
