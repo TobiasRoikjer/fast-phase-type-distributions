@@ -530,6 +530,7 @@ static void coal_graph_node_create(coal_graph_node_t **out,
     (*out)->data.state = state;
     (*out)->data.alpha = alpha;
     (*out)->data.vertex_index = -1;
+    (*out)->data.reset_flip = false;
 }
 
 static int visit_vertex(coal_graph_node_t **out,
@@ -687,10 +688,20 @@ static int build_coal_graph(coal_graph_node_t **graph, void *args) {
 
     bst_node_t *BST = bst_init(mrca, (size_t)absorbing_vertex);
 
-    visit_vertex(graph, initial, BST, state_size, state_size,
+    coal_graph_node_t *state_graph;
+
+    visit_vertex(&state_graph, initial, BST, state_size, state_size,
             state_size);
 
-    (*graph)->data.alpha = 1.0f;
+    vec_entry_t *start_state = (vec_entry_t*)calloc(state_size, sizeof(vec_entry_t));
+
+    coal_graph_node_t *start;
+    coal_graph_node_create(&start, start_state, 1.0f);
+    start->data.alpha = 1.0f;
+    graph_add_edge((graph_node_t*) start,
+            (graph_node_t*) state_graph, 1);
+
+    *graph = start;
 
     return 0;
 }
@@ -1095,27 +1106,185 @@ int coal_seg_sites(d_dist_t **dist, phdist_t *phdist) {
     return 0;
 }
 
-double coal_mph_expected(coal_graph_node_t *graph, size_t reward_index) {
-    weighted_edge_t *values = vector_get(graph->edges);
+void _reset_graph(coal_graph_node_t *node, bool reset_flip) {
+    // TODO: This visits multiple times
+    if (node->data.reset_flip == reset_flip) {
+        return;
+    }
+
+    weighted_edge_t *values = vector_get(node->edges);
+
+    for (size_t i = 0; i < vector_length(node->edges); i++) {
+        _reset_graph((coal_graph_node_t *) values[i].node, reset_flip);
+    }
+
+    node->data.full_path_value = -1;
+    node->data.vertex_exp = -1;
+    node->data.prob = -1;
+    node->data.descendants_exp_sum = -1;
+    node->data.visited = false;
+
+
+    node->data.reset_flip = !node->data.reset_flip;
+}
+
+void reset_graph(coal_graph_node_t *node) {
+    _reset_graph(node, !node->data.reset_flip);
+}
+
+double _coal_mph_expected(coal_graph_node_t *node, size_t reward_index) {
+    if (node->data.full_path_value >= 0) {
+        return node->data.full_path_value;
+    }
 
     double rate = 0;
     double sum = 0;
+    weighted_edge_t *values = vector_get(node->edges);
 
-    for (size_t i = 0; i < vector_length(graph->edges); i++) {
+    for (size_t i = 0; i < vector_length(node->edges); i++) {
         // Sum the rates
         rate += values[i].weight;
     }
 
-    for (size_t i = 0; i < vector_length(graph->edges); i++) {
+    for (size_t i = 0; i < vector_length(node->edges); i++) {
         double prob = values[i].weight / rate;
-        sum += prob * coal_mph_expected((coal_graph_node_t*) values[i].node,
+        sum += prob * _coal_mph_expected((coal_graph_node_t*) values[i].node,
                 reward_index);
+    }
+
+    if (node->data.full_path_value >= 0) {
+        return node->data.full_path_value;
     }
 
     if (rate != 0) {
         double exp = 1 / rate;
-        sum += exp * (double)graph->data.state[reward_index];
+        sum += exp * (double)node->data.state[reward_index];
     }
+
+    node->data.full_path_value = sum;
+
+    return sum;
+}
+
+double coal_mph_expected(coal_graph_node_t *graph, size_t reward_index) {
+    reset_graph(graph);
+    return _coal_mph_expected(graph, reward_index);
+}
+
+void coal_mph_cov_assign_vertex(coal_graph_node_t *node, size_t reward_index) {
+    if (node->data.prob >= 0) {
+        return;
+    }
+
+    double rate = 0;
+
+    weighted_edge_t *values = vector_get(node->edges);
+
+    for (size_t i = 0; i < vector_length(node->edges); i++) {
+        // Sum the rates
+        rate += values[i].weight;
+    }
+
+    node->data.prob = 0;
+    weighted_edge_t *reverse_values = vector_get(node->reverse_edges);
+
+    for (size_t i = 0; i < vector_length(node->reverse_edges); i++) {
+        weighted_edge_t *parent = &(reverse_values[i]);
+        double rate_parent = 0;
+
+        weighted_edge_t *parent_values = vector_get(parent->node->edges);
+
+        for (size_t j = 0; j < vector_length(parent->node->edges); j++) {
+            // Sum the rates
+            rate_parent += parent_values[j].weight;
+        }
+
+        coal_mph_cov_assign_vertex((coal_graph_node_t*) parent->node, reward_index);
+        node->data.prob += reverse_values[i].weight/rate_parent * ((coal_graph_node_t*)(parent->node))->data.prob;
+    }
+
+    if (rate != 0) {
+        node->data.vertex_exp = node->data.prob * ((double)node->data.state[reward_index] / rate);
+    } else {
+        node->data.vertex_exp = 0;
+    }
+}
+
+void coal_mph_cov_assign_desc(coal_graph_node_t *node, size_t reward_index) {
+    if (node->data.descendants_exp_sum >= 0) {
+        return;
+    }
+
+    double rate = 0;
+
+    weighted_edge_t *values = vector_get(node->edges);
+
+    for (size_t i = 0; i < vector_length(node->edges); i++) {
+        // Sum the rates
+        rate += values[i].weight;
+    }
+
+    node->data.descendants_exp_sum = 0;
+
+    for (size_t i = 0; i < vector_length(node->edges); i++) {
+        coal_mph_cov_assign_desc((coal_graph_node_t*) values[i].node, reward_index);
+        node->data.descendants_exp_sum += values[i].weight / rate * ((coal_graph_node_t*)(values[i].node))->data.descendants_exp_sum;
+    }
+
+    if (rate != 0) {
+        node->data.descendants_exp_sum += ((double)node->data.state[reward_index] / rate);
+    }
+}
+
+double _coal_mph_cov(coal_graph_node_t *node) {
+    if (node->data.visited) {
+        return 0;
+    }
+
+    weighted_edge_t *values = vector_get(node->edges);
+    double sum = 0;
+    sum += node->data.descendants_exp_sum * node->data.vertex_exp;
+    node->data.visited = true;
+
+    for (size_t i = 0; i < vector_length(node->edges); i++) {
+        sum += _coal_mph_cov((coal_graph_node_t*) values[i].node);
+    }
+
+    return sum;
+}
+
+coal_graph_node_t *get_absorbing_vertex(coal_graph_node_t *graph) {
+    if (vector_length(graph->edges) == 0) {
+        return graph;
+    }
+
+    graph_node_t *first_child =
+            ((weighted_edge_t*)(vector_get(graph->edges)))[0].node;
+
+    return get_absorbing_vertex((coal_graph_node_t *) first_child);
+}
+
+double coal_mph_cov(coal_graph_node_t *graph,
+                     size_t reward_index_1,
+                     size_t reward_index_2) {
+    double sum = 0;
+
+    reset_graph(graph);
+    graph->data.prob = 1.0f;
+    graph->data.vertex_exp = 0.0;
+    coal_mph_cov_assign_vertex(get_absorbing_vertex(graph), reward_index_1);
+    coal_mph_cov_assign_desc(graph, reward_index_2);
+    sum += _coal_mph_cov(graph);
+
+    reset_graph(graph);
+    graph->data.prob = 1.0f;
+    graph->data.vertex_exp = 0.0;
+    coal_mph_cov_assign_vertex(get_absorbing_vertex(graph), reward_index_2);
+    coal_mph_cov_assign_desc(graph, reward_index_1);
+    sum += _coal_mph_cov(graph);
+
+    sum -= coal_mph_expected(graph, reward_index_1) *
+            coal_mph_expected(graph, reward_index_2);
 
     return sum;
 }

@@ -44,6 +44,7 @@ size_t vector_length(vector_t *vector);
 
 typedef struct {
     vector_t *edges;
+    vector_t *reverse_edges;
     char data[];
 } graph_node_t;
 

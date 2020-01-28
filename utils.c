@@ -64,6 +64,7 @@ size_t vector_length(vector_t *vector) {
 int graph_node_create(graph_node_t **node, size_t data_size) {
     *node = malloc(sizeof(graph_node_t) + data_size);
     vector_init(&(*node)->edges, sizeof(weighted_edge_t), 1);
+    vector_init(&(*node)->reverse_edges, sizeof(weighted_edge_t), 1);
     return 0;
 }
 
@@ -74,6 +75,8 @@ int graph_node_destroy(graph_node_t *node) {
 int graph_add_edge(graph_node_t *from, graph_node_t *to, double weight) {
     *((weighted_edge_t*)(vector_add(from->edges))) =
             (weighted_edge_t) {.node = to, .weight = weight};
+    *((weighted_edge_t*)(vector_add(to->reverse_edges))) =
+            (weighted_edge_t) {.node = from, .weight = weight};
 
     return 0;
 }
