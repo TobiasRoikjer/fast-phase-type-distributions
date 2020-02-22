@@ -10,4 +10,8 @@ typedef struct d_dist {
     void *args;
 } d_dist_t;
 
+double dist_rand01();
+void dist_sampling_set_random_seed(unsigned int seed);
+double dist_sample_exp(double rate);
+
 #endif //AMAZEPHASE_DIST_H

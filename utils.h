@@ -39,6 +39,7 @@ typedef struct vector {
 
 int vector_init(vector_t **vector, size_t entry_size, size_t initial_size);
 void *vector_add(vector_t *vector);
+void vector_remove_head(vector_t *vector);
 void *vector_get(vector_t *vector);
 size_t vector_length(vector_t *vector);
 

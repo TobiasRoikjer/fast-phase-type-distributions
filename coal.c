@@ -1152,10 +1152,6 @@ double _coal_mph_expected(coal_graph_node_t *node, size_t reward_index) {
                 reward_index);
     }
 
-    if (node->data.full_path_value >= 0) {
-        return node->data.full_path_value;
-    }
-
     if (rate != 0) {
         double exp = 1 / rate;
         sum += exp * (double)node->data.state[reward_index];
@@ -1267,6 +1263,7 @@ coal_graph_node_t *get_absorbing_vertex(coal_graph_node_t *graph) {
 double coal_mph_cov(coal_graph_node_t *graph,
                      size_t reward_index_1,
                      size_t reward_index_2) {
+    // TODO: Pre-calculate the entire vector of rewards
     double sum = 0;
 
     reset_graph(graph);
@@ -1287,4 +1284,32 @@ double coal_mph_cov(coal_graph_node_t *graph,
             coal_mph_expected(graph, reward_index_2);
 
     return sum;
+}
+
+int coal_label_vertex_index(size_t *largest_index, coal_graph_node_t *graph) {
+    reset_graph(graph);
+    queue_t *queue;
+    queue_create(&queue, 8);
+    size_t index = 0;
+    queue_enqueue(queue, graph);
+
+    while(!queue_empty(queue)) {
+        coal_graph_node_t *node = queue_dequeue(queue);
+
+        if (node->data.vertex_index != -1) {
+            continue;
+        }
+
+        weighted_edge_t *values = vector_get(node->edges);
+
+        node->data.vertex_index = index++;
+
+        for (size_t i = 0; i < vector_length(node->edges); i++) {
+            queue_enqueue(queue, values[i].node);
+        }
+    }
+
+    *largest_index = index - 1;
+
+    return 0;
 }

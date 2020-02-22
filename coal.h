@@ -36,6 +36,7 @@ double coal_mph_expected(coal_graph_node_t *graph, size_t reward_index);
 double coal_mph_cov(coal_graph_node_t *graph,
                     size_t reward_index_1,
                     size_t reward_index_2);
+int coal_label_vertex_index(size_t *largest_index, coal_graph_node_t *graph);
 
 typedef struct d_phgen_args {
     mat_t *reward;

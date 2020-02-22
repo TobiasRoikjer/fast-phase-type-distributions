@@ -105,6 +105,21 @@ void test_exp_reward() {
 }
 
 
+void test_cov_reward() {
+    coal_graph_node_t *graph;
+    phdist_t *phdist;
+    coal_gen_graph_reward(&graph, 30, 0);
+
+    for (size_t j = 0; j < 4; j++) {
+        printf("Cov %zu: ", j);
+        for (size_t i = 0; i < 4; i++) {
+            printf("%f\t", coal_mph_cov(graph, i, j));
+        }
+        printf("\n");
+    }
+}
+
+
 void test_reward_sites() {
     phdist_t *phdist2;
     coal_gen_phdist(&phdist2, 5);
@@ -360,9 +375,11 @@ int main(int argc, char **argv) {
     //printf("\n..\n");
     //test_mat_mul();
     //printf("\n..\n");
-    test_gen_reward();
-    printf("\n..\n");
+    //test_gen_reward();
+    //printf("\n..\n");
     test_exp_reward();
+    printf("\n..\n");
+    test_cov_reward();
     printf("\n..\n");
     return 0;
 }
