@@ -409,8 +409,8 @@ struct _queue_data {
 static int coal_make_phdist(phdist_t **phdist,
                             size_t n_rows,
                             size_t n_cols,
-                            avl_node_t **rows,
-                            avl_node_t **cols,
+                            avl_mat_node_t **rows,
+                            avl_mat_node_t **cols,
                             size_t **StSpM,
                             size_t ri,
                             size_t state_size) {
@@ -483,8 +483,8 @@ static int add_edge(expanding_arr_t *expanding_rows, expanding_arr_t *expanding_
     expanding_arr_fit(expanding_cols, from);
     expanding_arr_fit(expanding_cols, to);
 
-    avl_node_t ***rows = (avl_node_t***) expanding_rows->value;
-    avl_node_t ***cols = (avl_node_t***) expanding_cols->value;
+    avl_mat_node_t ***rows = (avl_mat_node_t***) expanding_rows->value;
+    avl_mat_node_t ***cols = (avl_mat_node_t***) expanding_cols->value;
 
     fprintf(stderr, "Adding %zu to %zu with weight %f\n",
             from, to, weight);
@@ -510,20 +510,6 @@ static int add_edge(expanding_arr_t *expanding_rows, expanding_arr_t *expanding_
     return 0;
 }
 
-static int add_or_get_vertex(bst_node_t **out, bst_node_t *bst,
-        vec_entry_t *state, size_t vector_length, size_t potential_new_index,
-        const size_t vec_nmemb) {
-    if (bst_find_or_parent(out, bst, state, vec_nmemb)) {
-        return 0;
-    } else {
-        vec_entry_t *cloned_state = malloc(sizeof(vec_entry_t) * vector_length);
-        memcpy(cloned_state, state, vector_length);
-
-        *out = bst_add(*out, cloned_state, potential_new_index);
-        return 0;
-    }
-}
-
 static void coal_graph_node_create(coal_graph_node_t **out,
         vec_entry_t *state, double alpha) {
     graph_node_create((graph_node_t**)out, sizeof(coal_graph_node_data_t));
@@ -535,27 +521,22 @@ static void coal_graph_node_create(coal_graph_node_t **out,
 
 static int visit_vertex(coal_graph_node_t **out,
                         vec_entry_t *state,
-                        bst_node_t *bst,
+                        avl_vec_node_t *bst,
                         size_t state_size,
                         size_t vector_length,
                         const size_t vec_nmemb) {
-    bst_node_t *bst_node;
+    avl_vec_node_t *bst_node = avl_vec_find(bst, state, vector_length);
 
-    if ((bst_node = (bst_find(bst, state, vec_nmemb))) != NULL) {
-        *out = bst_node->graph_node;
+    if (bst_node != NULL) {
+        *out = bst_node->entry;
         return 0;
     } else {
-        //TODO: Push alpha value
-        // TODO: find isomorphisms
-        // TODO: Scale with reward
-        // TODO: Make 0-transitions take a set of vertices
-
         vec_entry_t *vertex_state = malloc(sizeof(vec_entry_t) * vector_length);
         memcpy(vertex_state, state, sizeof(vec_entry_t) * vector_length);
 
         coal_graph_node_create(out, vertex_state, 0.0f);
 
-        bst_add(bst, vertex_state, (size_t)*out);
+        avl_vec_insert(&bst, vertex_state, *out, vector_length);
 
         vec_entry_t *v = state;
 
@@ -686,7 +667,8 @@ static int build_coal_graph(coal_graph_node_t **graph, void *args) {
     coal_graph_node_t *absorbing_vertex;
     coal_graph_node_create(&absorbing_vertex, mrca, 0.0f);
 
-    bst_node_t *BST = bst_init(mrca, (size_t)absorbing_vertex);
+    avl_vec_node_t *BST;
+    avl_vec_node_create(&BST, mrca, absorbing_vertex, NULL);
 
     coal_graph_node_t *state_graph;
 
@@ -744,8 +726,8 @@ int coal_graph_as_phdist(phdist_t **phdist, coal_graph_node_t *graph) {
 
     size_t n_rows = index;
     size_t n_cols = index;
-    avl_node_t **rows = malloc(sizeof(avl_node_t*)*n_rows);
-    avl_node_t **cols = malloc(sizeof(avl_node_t*)*n_cols);
+    avl_mat_node_t **rows = malloc(sizeof(avl_mat_node_t*)*n_rows);
+    avl_mat_node_t **cols = malloc(sizeof(avl_mat_node_t*)*n_cols);
 
     while(!queue_empty(revisit_queue)) {
         coal_graph_node_t *node = queue_dequeue(revisit_queue);
@@ -842,8 +824,8 @@ static int _queue_pop_ss_hobolth(phdist_t **phdist, struct _queue_data *_queue_d
     size_t n_cols = state->n_cols;
     expanding_arr_t *expanding_rows = state->expanding_rows;
     expanding_arr_t *expanding_cols = state->expanding_cols;
-    avl_node_t ***rows = (avl_node_t***)expanding_rows->value;
-    avl_node_t ***cols = (avl_node_t***)expanding_cols->value;
+    avl_mat_node_t ***rows = (avl_mat_node_t***)expanding_rows->value;
+    avl_mat_node_t ***cols = (avl_mat_node_t***)expanding_cols->value;
     size_t StSpM_n = state->StSpM_n;
     size_t **StSpM = state->StSpM;
 
@@ -916,25 +898,25 @@ int _queue_init_standard_vector(struct _queue_data **out, size_t state_size, vec
     expanding_arr_t *expanding_rows = malloc(sizeof(expanding_arr_t));
     expanding_arr_t *expanding_cols = malloc(sizeof(expanding_arr_t));
 
-    avl_node_t** rows;
-    avl_node_t** cols;
+    avl_mat_node_t** rows;
+    avl_mat_node_t** cols;
 
-    rows = malloc(sizeof(avl_node_t*) * 1);
-    cols = malloc(sizeof(avl_node_t*) * 1);
+    rows = malloc(sizeof(avl_mat_node_t*) * 1);
+    cols = malloc(sizeof(avl_mat_node_t*) * 1);
 
-    expanding_rows->value = malloc(sizeof(avl_node_t***));
+    expanding_rows->value = malloc(sizeof(avl_mat_node_t***));
     *expanding_rows->value = rows;
-    expanding_cols->value = malloc(sizeof(avl_node_t***));
+    expanding_cols->value = malloc(sizeof(avl_mat_node_t***));
     *expanding_cols->value = cols;
     expanding_rows->length = 1;
     expanding_cols->length = 1;
-    expanding_rows->entry_size = sizeof(avl_node_t*);
-    expanding_cols->entry_size = sizeof(avl_node_t*);
+    expanding_rows->entry_size = sizeof(avl_mat_node_t*);
+    expanding_cols->entry_size = sizeof(avl_mat_node_t*);
 
-    rows[0] = malloc(sizeof(avl_node_t) * 1);
+    rows[0] = malloc(sizeof(avl_mat_node_t) * 1);
     avl_node_create(&(rows[0]), 0, 0, NULL);
 
-    cols[0] = malloc(sizeof(avl_node_t) * 1);
+    cols[0] = malloc(sizeof(avl_mat_node_t) * 1);
     avl_node_create(&(cols[0]), 0, 0, NULL);
 
     _queue_init(_queue, 2);

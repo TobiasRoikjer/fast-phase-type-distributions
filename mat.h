@@ -16,7 +16,7 @@ typedef struct mat {
 } mat_t;
 
 int mat_malloc(mat_t **out, size_t rows, size_t cols);
-int mat_flatten(mat_t *out, avl_node_t **rows, avl_node_t **cols);
+int mat_flatten(mat_t *out, avl_mat_node_t **rows, avl_mat_node_t **cols);
 int mat_clone(mat_t **out, mat_t *in);
 int mat_scale_rows(mat_t **out, mat_t *in, mat_entry_t *scalars);
 int mat_mult(mat_t **out, mat_t *left, mat_t *right);

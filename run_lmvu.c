@@ -1,10 +1,9 @@
-
-
 #include "coal.h"
 
 int main(int argc, char **argv) {
     printf("type,n,i,j,value\n");
-    for (size_t n = 1; n < atoi(argv[1]); n++) {
+
+    for (size_t n = (size_t)atoi(argv[1]); n <= atoi(argv[2]); n++) {
         coal_graph_node_t *graph;
         coal_gen_graph_reward(&graph, n, 0);
 

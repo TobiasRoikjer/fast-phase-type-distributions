@@ -19,20 +19,20 @@ inline int mat_malloc(mat_t **out, size_t rows, size_t cols) {
     return 0;
 }
 
-static inline int avl_malloc(avl_node_t ***rows, avl_node_t ***cols, size_t nrows, size_t ncols) {
-    *rows = calloc(nrows, sizeof(avl_node_t*));
-    *cols = calloc(ncols, sizeof(avl_node_t*));
+static inline int avl_malloc(avl_mat_node_t ***rows, avl_mat_node_t ***cols, size_t nrows, size_t ncols) {
+    *rows = calloc(nrows, sizeof(avl_mat_node_t*));
+    *cols = calloc(ncols, sizeof(avl_mat_node_t*));
 
     return 0;
 }
 
-static inline int avl_single_malloc(avl_node_t ***entries, size_t n) {
-    *entries = calloc(n, sizeof(avl_node_t*));
+static inline int avl_single_malloc(avl_mat_node_t ***entries, size_t n) {
+    *entries = calloc(n, sizeof(avl_mat_node_t*));
 
     return 0;
 }
 
-inline int mat_flatten(mat_t *out, avl_node_t **rows, avl_node_t **cols) {
+inline int mat_flatten(mat_t *out, avl_mat_node_t **rows, avl_mat_node_t **cols) {
     for (size_t i = 0; i < (out)->n_rows; i++) {
         avl_flatten(&(out->rows[i]), &(out->max_row_keys[i]), rows[i]);
     }
@@ -47,7 +47,7 @@ inline int mat_flatten(mat_t *out, avl_node_t **rows, avl_node_t **cols) {
     return 0;
 }
 
-static inline int mat_single_flatten(mat_t *out, avl_node_t **entries) {
+static inline int mat_single_flatten(mat_t *out, avl_mat_node_t **entries) {
     for (size_t i = 0; i < (out)->n_rows; i++) {
         avl_flatten(&(out->rows[i]), &(out->max_row_keys[i]), entries[i]);
     }
@@ -57,9 +57,9 @@ static inline int mat_single_flatten(mat_t *out, avl_node_t **entries) {
     return 0;
 }
 
-static inline mat_entry_t mat_rc_sum_slow(avl_flat_tuple_t *row, avl_node_t *col) {
+static inline mat_entry_t mat_rc_sum_slow(avl_flat_tuple_t *row, avl_mat_node_t *col) {
     mat_entry_t res = 0;
-    avl_node_t *node;
+    avl_mat_node_t *node;
 
     while (row->entry != 0) {
         node = avl_find(col, row->key);
@@ -119,8 +119,8 @@ static inline mat_entry_t mat_rc_sum(avl_flat_tuple_t *row, avl_flat_meta_t *col
 
 int mat_mult(mat_t **out, mat_t *left, mat_t *right) {
     mat_malloc(out, left->n_rows, right->n_cols);
-    avl_node_t **rows;
-    avl_node_t **cols;
+    avl_mat_node_t **rows;
+    avl_mat_node_t **cols;
     avl_malloc(&rows, &cols, (*out)->n_rows, (*out)->n_cols);
 
     for (size_t r = 0; r < left->n_rows; r++) {
@@ -185,8 +185,8 @@ int mat_identity(mat_t **out, size_t size) {
 
 int mat_sub(mat_t **out, mat_t *left, mat_t *right) {
     mat_malloc(out, left->n_rows, left->n_cols);
-    avl_node_t **rows;
-    avl_node_t **cols;
+    avl_mat_node_t **rows;
+    avl_mat_node_t **cols;
     avl_malloc(&rows, &cols, (*out)->n_rows, (*out)->n_cols);
 
     for (size_t r = 0; r < left->n_rows; r++) {
@@ -291,8 +291,8 @@ int mat_mul_scalar(mat_t **out, mat_t *in, mat_entry_t scalar) {
 }
 
 int mat_scale_rows(mat_t **out, mat_t *in, mat_entry_t *scalars) {
-    avl_node_t **rows;
-    avl_node_t **cols;
+    avl_mat_node_t **rows;
+    avl_mat_node_t **cols;
     avl_malloc(&rows, &cols, in->n_rows, in->n_cols);
 
     // To avoid zero-entries we start "all over"
@@ -381,8 +381,8 @@ int mat_row_sums(mat_t **out, mat_t *in) {
 }
 
 int mat_inv_slow(mat_t **out, mat_t *in) {
-    avl_node_t **rows;
-    avl_node_t **cols;
+    avl_mat_node_t **rows;
+    avl_mat_node_t **cols;
     avl_malloc(&rows, &cols, in->n_rows, in->n_cols);
 
     avl_flat_tuple_t **iter_r = malloc(sizeof(avl_flat_tuple_t*)*in->n_rows);
@@ -432,7 +432,7 @@ static int arr_expand_by(avl_flat_meta_t *value, size_t n) {
 }
 
 int mat_inv(mat_t **out, mat_t *in) {
-    avl_node_t **rows;
+    avl_mat_node_t **rows;
     avl_flat_meta_t *flat_arr = malloc(sizeof(avl_flat_meta_t) * in->n_cols);
 
     for (size_t c = 0; c < in->n_cols; c++) {
