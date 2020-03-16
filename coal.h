@@ -11,7 +11,6 @@ typedef size_t vec_entry_t;
 
 typedef struct {
     vec_entry_t *state;
-    double alpha;
     double full_path_value;
     double prob;
     double vertex_exp;
@@ -19,6 +18,7 @@ typedef struct {
     bool visited;
     ssize_t vertex_index;
     bool reset_flip;
+    void *pointer;
 } coal_graph_node_data_t;
 
 typedef struct {
@@ -37,6 +37,7 @@ double coal_mph_cov(coal_graph_node_t *graph,
                     size_t reward_index_1,
                     size_t reward_index_2);
 int coal_label_vertex_index(size_t *largest_index, coal_graph_node_t *graph);
+void coal_graph_reset(coal_graph_node_t *graph);
 
 typedef struct d_phgen_args {
     mat_t *reward;

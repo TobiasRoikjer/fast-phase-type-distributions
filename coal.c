@@ -511,10 +511,9 @@ static int add_edge(expanding_arr_t *expanding_rows, expanding_arr_t *expanding_
 }
 
 static void coal_graph_node_create(coal_graph_node_t **out,
-        vec_entry_t *state, double alpha) {
+        vec_entry_t *state) {
     graph_node_create((graph_node_t**)out, sizeof(coal_graph_node_data_t));
     (*out)->data.state = state;
-    (*out)->data.alpha = alpha;
     (*out)->data.vertex_index = -1;
     (*out)->data.reset_flip = false;
 }
@@ -534,7 +533,7 @@ static int visit_vertex(coal_graph_node_t **out,
         vec_entry_t *vertex_state = malloc(sizeof(vec_entry_t) * vector_length);
         memcpy(vertex_state, state, sizeof(vec_entry_t) * vector_length);
 
-        coal_graph_node_create(out, vertex_state, 0.0f);
+        coal_graph_node_create(out, vertex_state);
 
         avl_vec_insert(&bst, vertex_state, *out, vector_length);
 
@@ -556,25 +555,11 @@ static int visit_vertex(coal_graph_node_t **out,
                             vector_length,
                             vec_nmemb);
 
-                    //fprintf(stderr, "To ");
-
-                    //print_vector(v, vector_length);
-
                     v[i]++;
                     v[j]++;
                     v[(i + j + 2) - 1]--;
 
-                    //fprintf(stderr, "From ");
-                    //print_vector(v, vector_length);
                     graph_add_edge((graph_node_t*)*out, (graph_node_t*)new_vertex, t);
-                    //fprintf(stderr, "\n");
-                    //fprintf(stderr, "%zu w %f\n", new_vertex->entry, t);
-
-                    /*fprintf(stderr, "Now it is: \n");
-
-                    for (size_t k = 0; k < vector_length(weighted_edges); ++k) {
-                        fprintf(stderr, "\tto %zu w: %f\n", values2[k].to_index, values2[k].weight);
-                    }*/
                 }
             }
         }
@@ -632,7 +617,6 @@ static void print_graph_node(coal_graph_node_t *node, size_t vec_length, size_t 
     for (size_t i = 0; i < indent; i++) {
         fprintf(stderr, "\t");
     }
-    fprintf(stderr, "Node data %f ", node->data.alpha);
 
     print_vector(node->data.state, vec_length);
     fprintf(stderr, "\n");
@@ -665,7 +649,7 @@ static int build_coal_graph(coal_graph_node_t **graph, void *args) {
     mrca[state_size-1] = 1;
 
     coal_graph_node_t *absorbing_vertex;
-    coal_graph_node_create(&absorbing_vertex, mrca, 0.0f);
+    coal_graph_node_create(&absorbing_vertex, mrca);
 
     avl_vec_node_t *BST;
     avl_vec_node_create(&BST, mrca, absorbing_vertex, NULL);
@@ -678,8 +662,7 @@ static int build_coal_graph(coal_graph_node_t **graph, void *args) {
     vec_entry_t *start_state = (vec_entry_t*)calloc(state_size, sizeof(vec_entry_t));
 
     coal_graph_node_t *start;
-    coal_graph_node_create(&start, start_state, 1.0f);
-    start->data.alpha = 1.0f;
+    coal_graph_node_create(&start, start_state);
     graph_add_edge((graph_node_t*) start,
             (graph_node_t*) state_graph, 1);
 
@@ -1105,6 +1088,7 @@ void _reset_graph(coal_graph_node_t *node, bool reset_flip) {
     node->data.prob = -1;
     node->data.descendants_exp_sum = -1;
     node->data.visited = false;
+    node->data.pointer = NULL;
 
 
     node->data.reset_flip = !node->data.reset_flip;
@@ -1112,6 +1096,10 @@ void _reset_graph(coal_graph_node_t *node, bool reset_flip) {
 
 void reset_graph(coal_graph_node_t *node) {
     _reset_graph(node, !node->data.reset_flip);
+}
+
+void coal_graph_reset(coal_graph_node_t *graph) {
+    reset_graph(graph);
 }
 
 double _coal_mph_expected(coal_graph_node_t *node, size_t reward_index) {
