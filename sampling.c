@@ -19,7 +19,7 @@ int sampling_graph_iterative(sampling_number_t **out, coal_graph_node_t *graph, 
 
     if (new_state != NULL) {
         for (size_t i = 0; i < reward_size; ++i) {
-            (*out)[i] += min_value * graph->data.state[i];
+            (*out)[i] += min_value * graph->data.state_vec[i];
         }
 
         return sampling_graph_iterative(out, new_state, reward_size);
@@ -39,7 +39,7 @@ static void print_vector(vec_entry_t *v, size_t nmemb) {
 static void print_vector2(coal_graph_node_t **node, size_t nmemb) {
     fprintf(stderr, "(");
     for (size_t i = 0; i < nmemb; i++) {
-        print_vector(node[i]->data.state, 4);
+        print_vector(node[i]->data.state_vec, 4);
         fprintf(stderr, ", ");
     }
     fprintf(stderr, ")");
@@ -65,7 +65,7 @@ int _sampling_graph_pfd_constants(pdf_constant_t **out, coal_graph_node_t *graph
             for (size_t j = 0; j < vector_length(path); ++j) {
                 coal_graph_node_t *u = path_n[j];
 
-                if (u->data.state[i] == 0.0f) {
+                if (u->data.state_vec[i] == 0.0f) {
                     continue;
                 }
 
@@ -79,12 +79,12 @@ int _sampling_graph_pfd_constants(pdf_constant_t **out, coal_graph_node_t *graph
                         continue;
                     }
 
-                    if (z->data.state[i] == 0.0f) {
+                    if (z->data.state_vec[i] == 0.0f) {
                         continue;
                     }
 
                     sampling_number_t z_r = path_r[k];
-                    prod *= (z_r/z->data.state[i])/(z_r/z->data.state[i]-u_r/u->data.state[i]);
+                    prod *= (z_r/z->data.state_vec[i])/(z_r/z->data.state_vec[i]-u_r/u->data.state_vec[i]);
                 }
 
                 pdf_constant_t *entry = (*out + reward_size * u->data.vertex_index + i);
@@ -110,10 +110,10 @@ int _sampling_graph_pfd_constants(pdf_constant_t **out, coal_graph_node_t *graph
         pdf_constant_t *entry = (*out + reward_size * graph->data.vertex_index);
 
         for (size_t j = 0; j < reward_size; ++j) {
-            if (graph->data.state[j] == 0.0f) {
+            if (graph->data.state_vec[j] == 0.0f) {
                 entry[j].rate = 0.0f;
             } else {
-                entry[j].rate = rate/graph->data.state[j];
+                entry[j].rate = rate/graph->data.state_vec[j];
             }
         }
 
@@ -165,7 +165,7 @@ inline static sampling_number_t get_rate(coal_graph_node_t *node, size_t n_verti
 }
 
 inline static sampling_number_t get_reward_rate(coal_graph_node_t *node, size_t n_vertices, size_t reward_index) {
-    return get_rate(node, n_vertices)/node->data.state[reward_index];
+    return get_rate(node, n_vertices)/node->data.state_vec[reward_index];
 }
 
 inline static bool zero_constants(sampling_number_t *array, size_t len) {
@@ -201,7 +201,7 @@ int _sampling_graph_pfd_constants_rec(sampling_number_t **k_out,
 
         if (vector_length(vertex->edges) == 0) {
             return 0;
-        } else if (vertex->data.state[reward_index] == 0) {
+        } else if (vertex->data.state_vec[reward_index] == 0) {
             weighted_edge_t *values = vector_get(vertex->edges);
 
             for (size_t i = 0; i < vector_length(vertex->edges); i++) {

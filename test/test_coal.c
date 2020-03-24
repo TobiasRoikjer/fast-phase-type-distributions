@@ -87,7 +87,7 @@ void test_gen_erlang() {
 void test_gen_reward() {
     coal_graph_node_t *graph;
     phdist_t *phdist;
-    coal_gen_graph_reward(&graph, 4, 0);
+    coal_gen_kingman_graph(&graph, 5);
     coal_graph_as_phdist(&phdist, graph);
     phdist_print_as_matrix(phdist);
     phdist_print_as_matrix_col(phdist);
@@ -97,7 +97,7 @@ void test_gen_reward() {
 void test_exp_reward() {
     coal_graph_node_t *graph;
     phdist_t *phdist;
-    coal_gen_graph_reward(&graph, 10, 0);
+    coal_gen_kingman_graph(&graph, 10);
 
     for (size_t i = 0; i < 10; i++) {
         printf("Expected %zu: %f\n", i, coal_mph_expected(graph, i));
@@ -108,7 +108,7 @@ void test_exp_reward() {
 void test_cov_reward() {
     coal_graph_node_t *graph;
     phdist_t *phdist;
-    coal_gen_graph_reward(&graph, 30, 0);
+    coal_gen_kingman_graph(&graph, 30);
 
     for (size_t j = 0; j < 4; j++) {
         printf("Cov %zu: ", j);
@@ -338,6 +338,49 @@ void test_mat_mul() {
     mat_print_as_matrix(res);
 }
 
+void test_im_mat_utils() {
+    im_state_t *state;
+    im_state_init(&state, 3, 4);
+    state->mat1[1][0]= 3;
+    state->mat1[0][1]= 4;
+    state->mat1[3][0]= 1;
+    state->mat1[0][4]= 2;
+    state->mat1[3][4]= 9;
+
+    state->mat2[1][0]= 3;
+    state->mat2[0][1]= 4;
+    state->mat2[3][0]= 1;
+    state->mat2[0][4]= 2;
+    state->mat2[0][2]= 3;
+    state->mat2[1][2]= 4;
+    state->mat2[2][2]= 5;
+    state->mat2[3][4]= 8;
+
+    vec_entry_t *vec;
+    im_state_as_vec(&vec, state, 3, 4);
+    fflush(stdout);
+
+    for (size_t i = 0; i < (3+1)*(4+1)*2; ++i) {
+        fprintf(stderr, "%zu,", vec[i]);
+        if ((i+1) % 4 == 0) {
+            fprintf(stderr, "\n");
+        }
+    }
+
+    fprintf(stderr, "\n");
+    fflush(stderr);
+}
+
+void test_gen_im() {
+    coal_graph_node_t *graph;
+    phdist_t *phdist;
+    coal_gen_im_graph(&graph, 3,3,1,2,3);
+    coal_graph_as_phdist(&phdist, graph);
+    phdist_print_as_matrix(phdist);
+    phdist_print_as_matrix_col(phdist);
+    printf("\n%zu\n", phdist_count_non_zeros(phdist));
+}
+
 
 
 int main(int argc, char **argv) {
@@ -377,9 +420,13 @@ int main(int argc, char **argv) {
     //printf("\n..\n");
     //test_gen_reward();
     //printf("\n..\n");
-    test_exp_reward();
-    printf("\n..\n");
-    test_cov_reward();
+    //test_exp_reward();
+    //printf("\n..\n");
+    //test_cov_reward();
+    //printf("\n..\n");
+    //test_im_mat_utils();
+    //printf("\n..\n");
+    test_gen_im();
     printf("\n..\n");
     return 0;
 }

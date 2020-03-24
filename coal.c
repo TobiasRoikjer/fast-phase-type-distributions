@@ -419,7 +419,7 @@ static int coal_make_phdist(phdist_t **phdist,
     mat_malloc(&((*phdist)->si_mat), n_rows, n_cols);
     mat_flatten((*phdist)->si_mat, rows, cols);
 
-    // Remove first row/column as it is the MRCA state
+    // Remove first row/column as it is the MRCA state_vec
     for (size_t r = 0; r < (*phdist)->si_mat->n_rows; r++) {
         (*phdist)->si_mat->max_row_keys[r]--;
 
@@ -453,14 +453,14 @@ static int coal_make_phdist(phdist_t **phdist,
     (*phdist)->si_mat->n_rows--;
     (*phdist)->si_mat->n_cols--;
 
-    // Remove the MRCA state
+    // Remove the MRCA state_vec
     (*phdist)->rw_arr = StSpM+1;
 
-    // Remove the MRCA state
+    // Remove the MRCA state_vec
     (*phdist)->n_rw_rows = ri - 1;
     // Do not include the n-ton, therefore state_size - 1
     (*phdist)->n_rw_cols = state_size;
-    
+
     return 0;
 }
 
@@ -511,14 +511,15 @@ static int add_edge(expanding_arr_t *expanding_rows, expanding_arr_t *expanding_
 }
 
 static void coal_graph_node_create(coal_graph_node_t **out,
-        vec_entry_t *state) {
+        vec_entry_t *state_vec, void *state) {
     graph_node_create((graph_node_t**)out, sizeof(coal_graph_node_data_t));
+    (*out)->data.state_vec = state_vec;
     (*out)->data.state = state;
     (*out)->data.vertex_index = -1;
     (*out)->data.reset_flip = false;
 }
 
-static int visit_vertex(coal_graph_node_t **out,
+static int kingman_visit_vertex(coal_graph_node_t **out,
                         vec_entry_t *state,
                         avl_vec_node_t *bst,
                         size_t state_size,
@@ -533,7 +534,7 @@ static int visit_vertex(coal_graph_node_t **out,
         vec_entry_t *vertex_state = malloc(sizeof(vec_entry_t) * vector_length);
         memcpy(vertex_state, state, sizeof(vec_entry_t) * vector_length);
 
-        coal_graph_node_create(out, vertex_state);
+        coal_graph_node_create(out, vertex_state, vertex_state);
 
         avl_vec_insert(&bst, vertex_state, *out, vector_length);
 
@@ -549,7 +550,7 @@ static int visit_vertex(coal_graph_node_t **out,
                     v[(i + j + 2) - 1]++;
 
                     coal_graph_node_t *new_vertex;
-                    visit_vertex(&new_vertex,
+                    kingman_visit_vertex(&new_vertex,
                             v, bst,
                             state_size,
                             vector_length,
@@ -568,49 +569,6 @@ static int visit_vertex(coal_graph_node_t **out,
     }
 }
 
-/* TODO: This
-
-        size_t entries = 0;
-        struct stack *stack_v = malloc(sizeof(struct stack));
-        stack_init(stack_v, 1);
-        // TODO: Bad cast, let the stack be void*
-        stack_push(stack_v, (bst_node_t*)my_v);
-
-        while (!stack_empty(stack_v)) {
-            vec_entry_t *v_entry = (vec_entry_t*)stack_pop(stack_v);
-
-            if (v_entry[reward_index] == 0) {
-                for (vec_entry_t i = 0; i < state_size; i++) {
-                    for (vec_entry_t j = i; j < state_size; j++) {
-                        if (((i == j && v_entry[i] >= 2) || (i != j && v_entry[i] > 0 && v_entry[j] > 0))) {
-                            vec_entry_t *new_entry = (vec_entry_t *) malloc(const_vector_size);
-                            memcpy(new_entry, v_entry, const_vector_size);
-                            new_entry[i]--;
-                            new_entry[j]--;
-                            new_entry[(i + j + 2) - 1]++;
-                            stack_push(stack_v, new_entry);
-                        }
-                    }
-                }
-            } else {
-                expanding_arr_fit(set_v, entries + 1);
-                ((vec_entry_t **) (*set_v->value))[entries] = v_entry;
-                entries++;
-            }
-        }
-
-        vector_t *weighted_edges;
-        vector_init(&weighted_edges, sizeof(struct weighted_edge), 8);
-
-        fprintf(stderr, "The set for ");
-        print_vector(my_v, state_size);
-        fprintf(stderr, " is ");
-
-        for (size_t vectors_entry = 0; vectors_entry < entries; vectors_entry++) {
-            v = ((vec_entry_t**)(*set_v->value))[vectors_entry];
-            print_vector(v, state_size);
-            fprintf(stderr, "\n and: "); */
-
 static void print_graph_node(coal_graph_node_t *node, size_t vec_length, size_t indent) {
     weighted_edge_t *values = vector_get(node->edges);
 
@@ -618,14 +576,14 @@ static void print_graph_node(coal_graph_node_t *node, size_t vec_length, size_t 
         fprintf(stderr, "\t");
     }
 
-    print_vector(node->data.state, vec_length);
+    print_vector(node->data.state_vec, vec_length);
     fprintf(stderr, "\n");
 
     for (size_t i = 0; i < vector_length(node->edges); i++) {
         //printf("Edge weight %f node data %f ", values[i].weight,
         //       ((struct node*)(&values[i].node))->data.alpha);
 
-        //print_vector(((struct node*)(&values[i].node))->data.state, vec_length);
+        //print_vector(((struct node*)(&values[i].node))->data.state_vec, vec_length);
 
         for (size_t k = 0; k < indent; k++) {
             fprintf(stderr, "\t");
@@ -637,38 +595,35 @@ static void print_graph_node(coal_graph_node_t *node, size_t vec_length, size_t 
     }
 }
 
-static int build_coal_graph(coal_graph_node_t **graph, void *args) {
-    coal_args_compress_t *targs = args;
+static void _print_graph_list(coal_graph_node_t *node, size_t vec_length) {
+    if (node->data.visited) {
+        return;
+    }
 
-    size_t state_size = targs->n;
+    node->data.visited = true;
 
-    vec_entry_t *initial = (vec_entry_t*)calloc(state_size, sizeof(vec_entry_t));
-    initial[0] = state_size;
+    fprintf(stderr, "Node: ");
+    print_vector(node->data.state_vec, vec_length);
+    fprintf(stderr, ":\n");
 
-    vec_entry_t *mrca = (vec_entry_t*)calloc(state_size, sizeof(vec_entry_t));
-    mrca[state_size-1] = 1;
+    weighted_edge_t *values = vector_get(node->edges);
 
-    coal_graph_node_t *absorbing_vertex;
-    coal_graph_node_create(&absorbing_vertex, mrca);
+    for (size_t i = 0; i < vector_length(node->edges); i++) {
+        fprintf(stderr, "\t");
+        fprintf(stderr, "(%f) ", values[i].weight);
+        print_vector(((coal_graph_node_t*)values[i].node)->data.state_vec, vec_length);
+        fprintf(stderr, "\n");
+    }
 
-    avl_vec_node_t *BST;
-    avl_vec_node_create(&BST, mrca, absorbing_vertex, NULL);
+    fprintf(stderr, "\n");
+    for (size_t i = 0; i < vector_length(node->edges); i++) {
+        _print_graph_list((coal_graph_node_t *) values[i].node, vec_length);
+    }
+}
 
-    coal_graph_node_t *state_graph;
-
-    visit_vertex(&state_graph, initial, BST, state_size, state_size,
-            state_size);
-
-    vec_entry_t *start_state = (vec_entry_t*)calloc(state_size, sizeof(vec_entry_t));
-
-    coal_graph_node_t *start;
-    coal_graph_node_create(&start, start_state);
-    graph_add_edge((graph_node_t*) start,
-            (graph_node_t*) state_graph, 1);
-
-    *graph = start;
-
-    return 0;
+static void print_graph_list(coal_graph_node_t *graph, size_t vec_length) {
+    coal_graph_reset(graph);
+    _print_graph_list(graph, vec_length);
 }
 
 static coal_graph_node_t *get_abs_vertex(coal_graph_node_t *graph) {
@@ -743,7 +698,7 @@ int coal_graph_as_phdist(phdist_t **phdist, coal_graph_node_t *graph) {
     mat_malloc(&((*phdist)->si_mat), n_rows, n_cols);
     mat_flatten((*phdist)->si_mat, rows, cols);
 
-    // Remove first row/column as it is the MRCA state
+    // Remove first row/column as it is the MRCA state_vec
     for (size_t r = 0; r < (*phdist)->si_mat->n_rows; r++) {
         (*phdist)->si_mat->max_row_keys[r]--;
 
@@ -777,10 +732,10 @@ int coal_graph_as_phdist(phdist_t **phdist, coal_graph_node_t *graph) {
     (*phdist)->si_mat->n_rows--;
     (*phdist)->si_mat->n_cols--;
 
-    // Remove the MRCA state
+    // Remove the MRCA state_vec
     //(*phdist)->rw_arr = StSpM+1;
 
-    // Remove the MRCA state
+    // Remove the MRCA state_vec
     //(*phdist)->n_rw_rows = ri - 1;
     // Do not include the n-ton, therefore state_size - 1
     //(*phdist)->n_rw_cols = state_size;
@@ -797,10 +752,10 @@ static int _queue_pop_ss_hobolth(phdist_t **phdist, struct _queue_data *_queue_d
     coal_args_hobolth_t *targs = args;
 
     size_t state_size = targs->n;
-    
+
     size_t vector_size = _queue_data->vector_size;
     const size_t vec_nmemb = _queue_data->vector_length;
-    
+
     bst_node_t *BST = state->BST;
     size_t ri = state->ri;
     size_t n_rows = state->n_rows;
@@ -928,7 +883,7 @@ int _queue_init_standard_vector(struct _queue_data **out, size_t state_size, vec
     memcpy(StSpM[0], mrca, state_size);
     memcpy(StSpM[1], initial, state_size);
 
-    // Set n_rows and n_cols to 1, as the MRCA state does not
+    // Set n_rows and n_cols to 1, as the MRCA state_vec does not
     // increase these.
     state->n_rows = 1;
     state->n_cols = 1;
@@ -963,15 +918,246 @@ int coal_gen_phdist(phdist_t **phdist, size_t state_size) {
     return 0;
 }
 
-int coal_gen_graph_reward(coal_graph_node_t **graph, size_t n, size_t reward_index) {
-    coal_args_compress_t args;
-    args.n = n;
-    args.reward_index = reward_index;
+int coal_gen_kingman_graph(coal_graph_node_t **graph, size_t n) {
+    size_t state_size = n;
 
-    build_coal_graph(graph, &args);
+    vec_entry_t *initial = (vec_entry_t*)calloc(state_size, sizeof(vec_entry_t));
+    initial[0] = state_size;
+
+    vec_entry_t *mrca = (vec_entry_t*)calloc(state_size, sizeof(vec_entry_t));
+    mrca[state_size-1] = 1;
+
+    coal_graph_node_t *absorbing_vertex;
+    coal_graph_node_create(&absorbing_vertex, mrca, mrca);
+
+    avl_vec_node_t *BST;
+    avl_vec_node_create(&BST, mrca, absorbing_vertex, NULL);
+
+    coal_graph_node_t *state_graph;
+
+    kingman_visit_vertex(&state_graph, initial, BST, state_size, state_size,
+                         state_size);
+
+    vec_entry_t *start_state = (vec_entry_t*)calloc(state_size, sizeof(vec_entry_t));
+
+    coal_graph_node_t *start;
+    coal_graph_node_create(&start, start_state, start_state);
+    graph_add_edge((graph_node_t*) start,
+                   (graph_node_t*) state_graph, 1);
+
+    *graph = start;
 
     return 0;
 }
+
+/*
+ * Isolation with migration
+ */
+int im_state_init(im_state_t **out,
+                         size_t n1, size_t n2) {
+    size_t state_size1 = n1+1;
+    size_t state_size2 = n2+1;
+
+    *out = malloc(sizeof(im_state_t*));
+    (*out)->mat1 = malloc(sizeof(vec_entry_t*)*state_size1);
+    (*out)->mat2 = malloc(sizeof(vec_entry_t*)*state_size1);
+
+    for (size_t i = 0; i < state_size1; ++i) {
+        (*out)->mat1[i] = calloc(state_size2, sizeof(vec_entry_t));
+        (*out)->mat2[i] = calloc(state_size2, sizeof(vec_entry_t));
+    }
+
+    return 0;
+}
+
+
+int im_state_cpy(im_state_t **out,
+                  im_state_t *in,
+                  size_t n1, size_t n2) {
+    im_state_init(out, n1, n2);
+
+    for (size_t i = 0; i < n1 + 1; ++i) {
+        for (size_t j = 0; j < n2 + 1; ++j) {
+            (*out)->mat1[i][j] = in->mat1[i][j];
+            (*out)->mat2[i][j] = in->mat2[i][j];
+        }
+    }
+
+    return 0;
+}
+
+size_t im_state_length(size_t n1, size_t n2) {
+    return (n1+1) * (n2+1) * 2;
+}
+
+void im_state_mat_as_vec(vec_entry_t *out, vec_entry_t **mat,
+        size_t width, size_t height) {
+    size_t k = 0;
+
+    for (size_t j = 0; j < height; ++j) {
+        for (size_t i = 0; i < width; ++i) {
+            out[k] = mat[i][j];
+            k++;
+        }
+    }
+}
+
+int im_state_as_vec(vec_entry_t **out, im_state_t *state,
+                    size_t n1, size_t n2) {
+    *out = malloc(sizeof(vec_entry_t)* im_state_length(n1, n2));
+
+    im_state_mat_as_vec(*out, state->mat1, n1+1, n2+1);
+    im_state_mat_as_vec(*out+(n1+1)*(n2+1), state->mat2, n1+1, n2+1);
+
+    return 0;
+}
+static int im_visit_vertex(coal_graph_node_t **out,
+                           im_state_t *state,
+                           vec_entry_t *state_vec,
+                           avl_vec_node_t *bst,
+                           size_t n1,
+                           size_t n2,
+                           size_t vector_length);
+
+static inline int im_visit_coal_loop(coal_graph_node_t **out,
+        vec_entry_t **d,
+        im_state_t *state, avl_vec_node_t *bst,
+                                     size_t n1,
+                                     size_t n2,
+                                     size_t vector_length) {
+    for (vec_entry_t i1 = 0; i1 < n1+1; i1++) {
+        for (vec_entry_t j1 = 0; j1 < n2+1; j1++) {
+            for (vec_entry_t i2 = i1; i2 < n1+1; i2++) {
+                for (vec_entry_t j2 = j1; j2 < n2+1; j2++) {
+                    mat_entry_t t;
+
+                    if (i1 == i2 && j1 == j2) {
+                        if (d[i1][j1] >= 2) {
+                            t = d[i1][j1] * (d[i1][j1] - 1) / 2;
+                        } else {
+                            continue;
+                        }
+                    } else {
+                        if (d[i1][j1] >= 1 && d[i2][j2] >= 1) {
+                            t = d[i1][j1] * d[i2][j2];
+                        } else {
+                            continue;
+                        }
+                    }
+
+                    d[i1][j1]--;
+                    d[i2][j2]--;
+                    d[i1 + i2][j1 + j2]++;
+
+                    vec_entry_t *v;
+                    im_state_as_vec(&v, state, n1, n2);
+
+                    coal_graph_node_t *new_vertex;
+                    im_visit_vertex(&new_vertex,
+                                         state,v,
+                                         bst,
+                                         n1,n2,
+                                         vector_length);
+
+                    d[i1][j1]++;
+                    d[i2][j2]++;
+                    d[i1 + i2][j1 + j2]--;
+
+                    graph_add_edge((graph_node_t *) *out,
+                            (graph_node_t *) new_vertex, t);
+                }
+            }
+        }
+    }
+
+    return 0;
+}
+
+static int im_visit_vertex(coal_graph_node_t **out,
+                                im_state_t *state,
+                                vec_entry_t *state_vec,
+                                avl_vec_node_t *bst,
+                                size_t n1,
+                                size_t n2,
+                                size_t vector_length) {
+    avl_vec_node_t *bst_node = avl_vec_find(bst, state_vec, vector_length);
+
+    if (bst_node != NULL) {
+        *out = bst_node->entry;
+        return 0;
+    } else {
+        im_state_t *vertex_state;
+        im_state_cpy(&vertex_state, state, n1, n2);
+
+        vec_entry_t *vertex_state_vec;
+        im_state_as_vec(&vertex_state_vec, vertex_state, n1, n2);
+
+        coal_graph_node_create(out, state_vec, vertex_state);
+
+        avl_vec_insert(&bst, state_vec, *out, vector_length);
+
+        im_visit_coal_loop(out, state->mat1, state,
+                bst, n1, n2, vector_length);
+        im_visit_coal_loop(out, state->mat2, state,
+                           bst, n1, n2, vector_length);
+
+        return 0;
+    }
+}
+
+int coal_gen_im_graph(coal_graph_node_t **graph, size_t n1, size_t n2,
+                      coal_param_real_t migration_param,
+                      coal_param_real_t scale1, coal_param_real_t scale2) {
+    size_t state_size1 = n1;
+    size_t state_size2 = n2;
+
+    im_state_t *initial;
+    im_state_init(&initial, n1, n2);
+    initial->mat1[1][0] = n1;
+    initial->mat2[0][1] = n2;
+
+    vec_entry_t *initial_vec;
+    im_state_as_vec(&initial_vec, initial, n1, n2);
+
+    im_state_t *mrca;
+    im_state_init(&mrca, n1, n2);
+    mrca->mat1[n1][n2] = 1;
+    mrca->mat2[n1][n2] = 1;
+
+    vec_entry_t *mrca_vec;
+    im_state_as_vec(&mrca_vec, mrca, n1, n2);
+
+    coal_graph_node_t *absorbing_vertex;
+    coal_graph_node_create(&absorbing_vertex, mrca_vec, mrca);
+
+    avl_vec_node_t *BST;
+    avl_vec_node_create(&BST, mrca_vec, absorbing_vertex, NULL);
+
+    coal_graph_node_t *state_graph;
+
+    im_visit_vertex(&state_graph, initial, initial_vec, BST,
+            n1, n2, im_state_length(n1, n2));
+
+    im_state_t *start_state;
+    im_state_init(&start_state, n1, n2);
+
+
+    vec_entry_t *start_state_vec;
+    im_state_as_vec(&start_state_vec, start_state, n1, n2);
+
+    coal_graph_node_t *start;
+    coal_graph_node_create(&start, start_state_vec, start_state);
+    graph_add_edge((graph_node_t*) start,
+                   (graph_node_t*) state_graph, 1);
+
+    *graph = start;
+
+    print_graph_list(start, im_state_length(n1,n2));
+    print_graph_node(start, im_state_length(n1,n2),0);
+
+    return 0;
+}
+
 
 int d_ph_gen_fun(double **out, size_t from, size_t to, void *args) {
     d_phgen_args_t *arguments = (d_phgen_args_t*)args;
@@ -1124,7 +1310,7 @@ double _coal_mph_expected(coal_graph_node_t *node, size_t reward_index) {
 
     if (rate != 0) {
         double exp = 1 / rate;
-        sum += exp * (double)node->data.state[reward_index];
+        sum += exp * (double)(node->data.state_vec)[reward_index];
     }
 
     node->data.full_path_value = sum;
@@ -1170,7 +1356,7 @@ void coal_mph_cov_assign_vertex(coal_graph_node_t *node, size_t reward_index) {
     }
 
     if (rate != 0) {
-        node->data.vertex_exp = node->data.prob * ((double)node->data.state[reward_index] / rate);
+        node->data.vertex_exp = node->data.prob * ((double)(node->data.state_vec)[reward_index] / rate);
     } else {
         node->data.vertex_exp = 0;
     }
@@ -1198,7 +1384,7 @@ void coal_mph_cov_assign_desc(coal_graph_node_t *node, size_t reward_index) {
     }
 
     if (rate != 0) {
-        node->data.descendants_exp_sum += ((double)node->data.state[reward_index] / rate);
+        node->data.descendants_exp_sum += ((double)(node->data.state_vec)[reward_index] / rate);
     }
 }
 

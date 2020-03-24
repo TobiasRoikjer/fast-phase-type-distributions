@@ -7,7 +7,7 @@ int main(int argc, char **argv) {
     if (strcmp(argv[1], "pdf_constants") == 0) {
         size_t n = (size_t) atoi(argv[2]);
         coal_graph_node_t *graph;
-        coal_gen_graph_reward(&graph, n, 0);
+        coal_gen_kingman_graph(&graph, n);
         fprintf(stderr, "Done generating graph\n");
 
         time_t start;

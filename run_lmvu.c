@@ -5,7 +5,7 @@ int main(int argc, char **argv) {
 
     for (size_t n = (size_t)atoi(argv[1]); n <= atoi(argv[2]); n++) {
         coal_graph_node_t *graph;
-        coal_gen_graph_reward(&graph, n, 0);
+        coal_gen_kingman_graph(&graph, n);
 
         for (size_t i = 0; i < n; i++) {
             printf("exp,%zu,%zu,%zu,%f\n", n, i, i, coal_mph_expected(graph, i));

@@ -3,7 +3,7 @@
 #include "../bbst.h"
 
 static void testBBSTavl_insert_or_inc1() {
-    avl_node_t * root = NULL;
+    avl_mat_node_t * root = NULL;
 
     avl_insert_or_inc(&root, 'M', 0);
     avl_insert_or_inc(&root, 'N', 0);
@@ -20,7 +20,7 @@ static void testBBSTavl_insert_or_inc1() {
 }
 
 static void testBBSTavl_insert_or_inc2() {
-    avl_node_t * root = NULL;
+    avl_mat_node_t * root = NULL;
 
     avl_insert_or_inc(&root, 'J', 0);
     avl_insert_or_inc(&root, 'F', 0);
@@ -40,7 +40,7 @@ static void testBBSTavl_insert_or_inc2() {
 }
 
 static void testBBSTavl_flatten() {
-    avl_node_t * root = NULL;
+    avl_mat_node_t * root = NULL;
 
     avl_insert_or_inc(&root, 'J', 1);
     avl_insert_or_inc(&root, 'F', 2);
@@ -67,7 +67,7 @@ static void testBBSTavl_flatten() {
 }
 
 static void testBBSTinc() {
-    avl_node_t * root = NULL;
+    avl_mat_node_t * root = NULL;
 
     avl_insert_or_inc(&root, 'M', 1);
     avl_insert_or_inc(&root, 'M', 10);

@@ -10,7 +10,20 @@
 typedef size_t vec_entry_t;
 
 typedef struct {
-    vec_entry_t *state;
+    vec_entry_t **mat1;
+    vec_entry_t **mat2;
+} im_state_t;
+
+int im_state_init(im_state_t **out,
+        size_t n1, size_t n2);
+
+int im_state_as_vec(vec_entry_t **out,
+                    im_state_t *state,
+                    size_t n1, size_t n2);
+
+typedef struct {
+    vec_entry_t *state_vec;
+    void *state;
     double full_path_value;
     double prob;
     double vertex_exp;
@@ -27,10 +40,15 @@ typedef struct {
     coal_graph_node_data_t data;
 } coal_graph_node_t;
 
+typedef long double coal_param_real_t;
+
 int coal_gen_phdist(phdist_t **phdist, size_t state_size);
 int coal_gen_erlang_phdist(phdist_t **phdist, size_t samples);
 int coal_seg_sites(d_dist_t **dist, phdist_t *phdist);
-int coal_gen_graph_reward(coal_graph_node_t **graph, size_t n, size_t reward_index);
+int coal_gen_kingman_graph(coal_graph_node_t **graph, size_t n);
+int coal_gen_im_graph(coal_graph_node_t **graph, size_t n1, size_t n2,
+                      coal_param_real_t migration_param,
+                      coal_param_real_t scale1, coal_param_real_t scale2);
 int coal_graph_as_phdist(phdist_t **phdist, coal_graph_node_t *graph);
 double coal_mph_expected(coal_graph_node_t *graph, size_t reward_index);
 double coal_mph_cov(coal_graph_node_t *graph,
