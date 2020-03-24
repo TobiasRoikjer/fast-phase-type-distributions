@@ -1134,7 +1134,7 @@ static inline int im_visit_mig_loop(coal_graph_node_t **out,
             }
 
             // Scale by rate
-            t /= scale;
+            t /= scale*migration_param;
 
             d_from[i][j]--;
             d_to[i][j]++;
@@ -1196,7 +1196,7 @@ static int im_visit_vertex(coal_graph_node_t **out,
                            bst, n1, n2, vector_length,
                            migration_param, scale1, scale2);
 
-        im_visit_mig_loop(out, state->mat1, state->mat2, scale2, state,
+        im_visit_mig_loop(out, state->mat1, state->mat2, scale1, state,
                            bst, n1, n2, vector_length,
                            migration_param, scale1, scale2);
         im_visit_mig_loop(out, state->mat2, state->mat1, scale2, state,
