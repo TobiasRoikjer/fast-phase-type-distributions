@@ -46,9 +46,17 @@ int coal_gen_phdist(phdist_t **phdist, size_t state_size);
 int coal_gen_erlang_phdist(phdist_t **phdist, size_t samples);
 int coal_seg_sites(d_dist_t **dist, phdist_t *phdist);
 int coal_gen_kingman_graph(coal_graph_node_t **graph, size_t n);
-int coal_gen_im_graph(coal_graph_node_t **graph, size_t n1, size_t n2,
-                      coal_param_real_t migration_param,
-                      coal_param_real_t scale1, coal_param_real_t scale2);
+
+typedef struct {
+    size_t n1;
+    size_t n2;
+    coal_param_real_t migration_param;
+    coal_param_real_t scale1;
+    coal_param_real_t scale2;
+} coal_gen_im_graph_args_t;
+
+int coal_gen_im_graph(coal_graph_node_t **graph, coal_gen_im_graph_args_t args);
+
 int coal_graph_as_phdist(phdist_t **phdist, coal_graph_node_t *graph);
 double coal_mph_expected(coal_graph_node_t *graph, size_t reward_index);
 double coal_mph_cov(coal_graph_node_t *graph,

@@ -374,7 +374,15 @@ void test_im_mat_utils() {
 void test_gen_im() {
     coal_graph_node_t *graph;
     phdist_t *phdist;
-    coal_gen_im_graph(&graph, 3,3,1,2,3);
+    coal_gen_im_graph_args_t args = {
+            .n1 = 1,
+            .n2 = 1,
+            .migration_param = 10,
+            .scale1 = 0.25,
+            .scale2 = 0.75
+    };
+
+    coal_gen_im_graph(&graph, args);
     coal_graph_as_phdist(&phdist, graph);
     phdist_print_as_matrix(phdist);
     phdist_print_as_matrix_col(phdist);

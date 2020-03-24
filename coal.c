@@ -633,16 +633,34 @@ static coal_graph_node_t *get_abs_vertex(coal_graph_node_t *graph) {
         return graph;
     }
 
-    return get_abs_vertex((coal_graph_node_t*) values[0].node);
+    for (size_t i = 0; i < vector_length(graph->edges); i++) {
+        if (!((coal_graph_node_t*)values[i].node)->data.visited) {
+            ((coal_graph_node_t*)values[i].node)->data.visited = true;
+            coal_graph_node_t *res = get_abs_vertex((coal_graph_node_t*)values[i].node);
+
+            if (res != NULL) {
+                return res;
+            }
+        }
+    }
+
+    return NULL;
 }
 
 int coal_graph_as_phdist(phdist_t **phdist, coal_graph_node_t *graph) {
     queue_t *queue;
     queue_t *revisit_queue;
+    coal_graph_reset(graph);
     queue_create(&queue, 8);
     queue_create(&revisit_queue, 8);
     size_t index = 0;
-    queue_enqueue(queue, get_abs_vertex(graph));
+    coal_graph_node_t *abs_vertex = get_abs_vertex(graph);
+
+    if (abs_vertex == NULL) {
+        DIE_PERROR(1, "Cannot find absorbing vertex. Not a phase-type");
+    }
+
+    queue_enqueue(queue, abs_vertex);
     queue_enqueue(queue, graph);
 
     while(!queue_empty(queue)) {
@@ -1017,23 +1035,34 @@ static int im_visit_vertex(coal_graph_node_t **out,
                            avl_vec_node_t *bst,
                            size_t n1,
                            size_t n2,
-                           size_t vector_length);
+                           size_t vector_length,
+                           coal_param_real_t migration_param,
+                           coal_param_real_t scale1,
+                           coal_param_real_t scale2);
 
 static inline int im_visit_coal_loop(coal_graph_node_t **out,
         vec_entry_t **d,
+        coal_param_real_t scale,
         im_state_t *state, avl_vec_node_t *bst,
                                      size_t n1,
                                      size_t n2,
-                                     size_t vector_length) {
+                                     size_t vector_length,
+                                     coal_param_real_t migration_param,
+                                     coal_param_real_t scale1,
+                                     coal_param_real_t scale2) {
     for (vec_entry_t i1 = 0; i1 < n1+1; i1++) {
         for (vec_entry_t j1 = 0; j1 < n2+1; j1++) {
-            for (vec_entry_t i2 = i1; i2 < n1+1; i2++) {
-                for (vec_entry_t j2 = j1; j2 < n2+1; j2++) {
+            for (vec_entry_t i2 = 0; i2 < n1+1; i2++) {
+                for (vec_entry_t j2 = 0; j2 < n2+1; j2++) {
+                    if (i2 < i1 || (i2 == i1 && j2 < j1)) {
+                        continue;
+                    }
+
                     mat_entry_t t;
 
                     if (i1 == i2 && j1 == j2) {
                         if (d[i1][j1] >= 2) {
-                            t = d[i1][j1] * (d[i1][j1] - 1) / 2;
+                            t = d[i1][j1] * (d[i1][j1] - 1) / 2.0f;
                         } else {
                             continue;
                         }
@@ -1044,6 +1073,9 @@ static inline int im_visit_coal_loop(coal_graph_node_t **out,
                             continue;
                         }
                     }
+
+                    // Scale by rate
+                    t /= scale;
 
                     d[i1][j1]--;
                     d[i2][j2]--;
@@ -1057,7 +1089,9 @@ static inline int im_visit_coal_loop(coal_graph_node_t **out,
                                          state,v,
                                          bst,
                                          n1,n2,
-                                         vector_length);
+                                         vector_length,
+                                         migration_param,
+                                         scale1, scale2);
 
                     d[i1][j1]++;
                     d[i2][j2]++;
@@ -1073,13 +1107,72 @@ static inline int im_visit_coal_loop(coal_graph_node_t **out,
     return 0;
 }
 
+static inline int im_visit_mig_loop(coal_graph_node_t **out,
+                                     vec_entry_t **d_from,
+                                     vec_entry_t **d_to,
+                                     coal_param_real_t scale,
+                                     im_state_t *state, avl_vec_node_t *bst,
+                                     size_t n1,
+                                     size_t n2,
+                                     size_t vector_length,
+                                     coal_param_real_t migration_param,
+                                     coal_param_real_t scale1,
+                                     coal_param_real_t scale2) {
+    for (vec_entry_t i = 0; i < n1+1; i++) {
+        for (vec_entry_t j = 0; j < n2+1; j++) {
+            // The MRCA cannot migrate
+            if (i == n1 && j == n2) {
+                continue;
+            }
+
+            mat_entry_t t;
+
+            if (d_from[i][j] >= 1) {
+                t = d_from[i][j];
+            } else {
+                continue;
+            }
+
+            // Scale by rate
+            t /= scale;
+
+            d_from[i][j]--;
+            d_to[i][j]++;
+
+            vec_entry_t *v;
+            im_state_as_vec(&v, state, n1, n2);
+
+            coal_graph_node_t *new_vertex;
+            im_visit_vertex(&new_vertex,
+                            state,v,
+                            bst,
+                            n1,n2,
+                            vector_length,
+                            migration_param,
+                            scale1, scale2);
+
+            d_from[i][j]++;
+            d_to[i][j]--;
+
+            graph_add_edge((graph_node_t *) *out,
+                           (graph_node_t *) new_vertex, t);
+        }
+    }
+
+    return 0;
+}
+
+
 static int im_visit_vertex(coal_graph_node_t **out,
                                 im_state_t *state,
                                 vec_entry_t *state_vec,
                                 avl_vec_node_t *bst,
                                 size_t n1,
                                 size_t n2,
-                                size_t vector_length) {
+                                size_t vector_length,
+                                coal_param_real_t migration_param,
+                                coal_param_real_t scale1,
+                                coal_param_real_t scale2) {
     avl_vec_node_t *bst_node = avl_vec_find(bst, state_vec, vector_length);
 
     if (bst_node != NULL) {
@@ -1096,18 +1189,28 @@ static int im_visit_vertex(coal_graph_node_t **out,
 
         avl_vec_insert(&bst, state_vec, *out, vector_length);
 
-        im_visit_coal_loop(out, state->mat1, state,
-                bst, n1, n2, vector_length);
-        im_visit_coal_loop(out, state->mat2, state,
-                           bst, n1, n2, vector_length);
+        im_visit_coal_loop(out, state->mat1, scale1, state,
+                bst, n1, n2, vector_length,
+                migration_param, scale1, scale2);
+        im_visit_coal_loop(out, state->mat2, scale2, state,
+                           bst, n1, n2, vector_length,
+                           migration_param, scale1, scale2);
+
+        im_visit_mig_loop(out, state->mat1, state->mat2, scale2, state,
+                           bst, n1, n2, vector_length,
+                           migration_param, scale1, scale2);
+        im_visit_mig_loop(out, state->mat2, state->mat1, scale2, state,
+                          bst, n1, n2, vector_length,
+                          migration_param, scale1, scale2);
 
         return 0;
     }
 }
 
-int coal_gen_im_graph(coal_graph_node_t **graph, size_t n1, size_t n2,
-                      coal_param_real_t migration_param,
-                      coal_param_real_t scale1, coal_param_real_t scale2) {
+int coal_gen_im_graph(coal_graph_node_t **graph, coal_gen_im_graph_args_t args) {
+    size_t n1 = args.n1;
+    size_t n2 = args.n2;
+
     size_t state_size1 = n1;
     size_t state_size2 = n2;
 
@@ -1136,7 +1239,8 @@ int coal_gen_im_graph(coal_graph_node_t **graph, size_t n1, size_t n2,
     coal_graph_node_t *state_graph;
 
     im_visit_vertex(&state_graph, initial, initial_vec, BST,
-            n1, n2, im_state_length(n1, n2));
+            n1, n2, im_state_length(n1, n2),
+            args.migration_param, args.scale1, args.scale2);
 
     im_state_t *start_state;
     im_state_init(&start_state, n1, n2);
@@ -1153,7 +1257,7 @@ int coal_gen_im_graph(coal_graph_node_t **graph, size_t n1, size_t n2,
     *graph = start;
 
     print_graph_list(start, im_state_length(n1,n2));
-    print_graph_node(start, im_state_length(n1,n2),0);
+    //print_graph_node(start, im_state_length(n1,n2),0);
 
     return 0;
 }
@@ -1263,6 +1367,8 @@ void _reset_graph(coal_graph_node_t *node, bool reset_flip) {
         return;
     }
 
+    node->data.reset_flip = !node->data.reset_flip;
+
     weighted_edge_t *values = vector_get(node->edges);
 
     for (size_t i = 0; i < vector_length(node->edges); i++) {
@@ -1275,9 +1381,6 @@ void _reset_graph(coal_graph_node_t *node, bool reset_flip) {
     node->data.descendants_exp_sum = -1;
     node->data.visited = false;
     node->data.pointer = NULL;
-
-
-    node->data.reset_flip = !node->data.reset_flip;
 }
 
 void reset_graph(coal_graph_node_t *node) {
