@@ -51,8 +51,10 @@ typedef struct {
     size_t n1;
     size_t n2;
     coal_param_real_t migration_param;
-    coal_param_real_t scale1;
-    coal_param_real_t scale2;
+    coal_param_real_t pop_scale1;
+    coal_param_real_t pop_scale2;
+    coal_param_real_t mig_scale1;
+    coal_param_real_t mig_scale2;
 } coal_gen_im_graph_args_t;
 
 int coal_gen_im_graph(coal_graph_node_t **graph, coal_gen_im_graph_args_t args);
@@ -64,6 +66,10 @@ double coal_mph_cov(coal_graph_node_t *graph,
                     size_t reward_index_2);
 int coal_label_vertex_index(size_t *largest_index, coal_graph_node_t *graph);
 void coal_graph_reset(coal_graph_node_t *graph);
+
+void coal_print_graph_list(FILE *stream, coal_graph_node_t *graph,
+                           size_t vec_length);
+//print_graph_node(start, im_state_length(n1,n2),0);
 
 typedef struct d_phgen_args {
     mat_t *reward;
