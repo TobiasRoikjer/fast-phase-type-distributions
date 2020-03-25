@@ -12,6 +12,9 @@ typedef size_t vec_entry_t;
 typedef struct {
     vec_entry_t **mat1;
     vec_entry_t **mat2;
+    vec_entry_t **flag_mat1;
+    vec_entry_t **flag_mat2;
+    bool in_iso;
 } im_state_t;
 
 int im_state_init(im_state_t **out,
@@ -20,6 +23,8 @@ int im_state_init(im_state_t **out,
 int im_state_as_vec(vec_entry_t **out,
                     im_state_t *state,
                     size_t n1, size_t n2);
+
+size_t im_state_length(size_t n1, size_t n2);
 
 typedef struct {
     vec_entry_t *state_vec;
@@ -50,6 +55,8 @@ int coal_gen_kingman_graph(coal_graph_node_t **graph, size_t n);
 typedef struct {
     size_t n1;
     size_t n2;
+    size_t num_iso_coal_events;
+    bool allow_back_migrations;
     coal_param_real_t migration_param;
     coal_param_real_t pop_scale1;
     coal_param_real_t pop_scale2;
@@ -68,7 +75,7 @@ int coal_label_vertex_index(size_t *largest_index, coal_graph_node_t *graph);
 void coal_graph_reset(coal_graph_node_t *graph);
 
 void coal_print_graph_list(FILE *stream, coal_graph_node_t *graph,
-                           size_t vec_length);
+                           size_t vec_length, size_t vec_spacing);
 //print_graph_node(start, im_state_length(n1,n2),0);
 
 typedef struct d_phgen_args {

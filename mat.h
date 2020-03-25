@@ -28,5 +28,6 @@ int mat_mul_scalar(mat_t **out, mat_t *in, mat_entry_t scalar);
 int mat_row_sums(mat_t **out, mat_t *in);
 void mat_print_as_matrix(mat_t *mat);
 void mat_print_as_matrix_col(mat_t *mat);
+void mat_print_as_matrix_with_abs(mat_t *mat);
 
 #endif //AMAZEPHASE_MAT_H

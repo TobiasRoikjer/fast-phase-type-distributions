@@ -493,6 +493,37 @@ int mat_inv(mat_t **out, mat_t *in) {
     return 0;
 }
 
+void mat_print_as_matrix_with_abs(mat_t *mat) {
+    for (size_t r = 0; r < mat->n_rows; r++) {
+        avl_flat_tuple_t *row = mat->rows[r];
+        mat_entry_t sum = 0;
+
+        for (size_t c = 0; c < mat->n_cols; c++) {
+            if (row->key == c && row->entry != 0) {
+                printf("%f\t", row->entry);
+                sum += row->entry;
+                row++;
+            } else {
+                printf("0\t");
+            }
+        }
+
+        if (fabs(sum) >= 0.001f) {
+            printf("%f\t", -sum);
+        } else {
+            printf("0\t");
+        }
+
+        printf("\n");
+    }
+
+    for (size_t c = 0; c < mat->n_cols+1; c++) {
+        printf("0\t");
+    }
+
+    printf("\n");
+}
+
 void mat_print_as_matrix(mat_t *mat) {
     for (size_t r = 0; r < mat->n_rows; r++) {
         avl_flat_tuple_t *row = mat->rows[r];
