@@ -12,8 +12,8 @@ typedef size_t vec_entry_t;
 typedef struct {
     vec_entry_t **mat1;
     vec_entry_t **mat2;
-    vec_entry_t **flag_mat1;
-    vec_entry_t **flag_mat2;
+    bool flag_mig1to2;
+    bool flag_mig2to1;
     bool in_iso;
 } im_state_t;
 

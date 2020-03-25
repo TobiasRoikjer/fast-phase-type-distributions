@@ -376,21 +376,21 @@ void test_gen_im() {
     phdist_t *phdist;
     coal_gen_im_graph_args_t args = {
             .n1 = 1,
-            .n2 = 1,
-            .allow_back_migrations = true,
-            .num_iso_coal_events = 10,
+            .n2 = 2,
+            .allow_back_migrations = false,
+            .num_iso_coal_events = 1,
             .migration_param = 100.0f,
-            .pop_scale1 = 1.0f,
-            .pop_scale2 = 10.0f,
+            .pop_scale1 = 10.0f,
+            .pop_scale2 = 1000.0f,
             .mig_scale1 = 1.0f,
-            .mig_scale2 = 10.0f
+            .mig_scale2 = 1.0f
     };
 
     coal_gen_im_graph(&graph, args);
-    coal_graph_as_phdist(&phdist, graph);
-    coal_print_graph_list(stdout, graph, (args.n1 + 1)*(args.n2 + 1)*4,
+    coal_print_graph_list(stdout, graph, (args.n1 + 1)*(args.n2 + 1)*2+3,
                           (args.n1+1));
-    //phdist_print_as_matrix(phdist);
+    coal_graph_as_phdist(&phdist, graph);
+    phdist_print_as_matrix(phdist);
     mat_print_as_matrix_with_abs(phdist->si_mat);
 }
 
