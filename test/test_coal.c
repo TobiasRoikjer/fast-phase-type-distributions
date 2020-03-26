@@ -394,6 +394,25 @@ void test_gen_im() {
     mat_print_as_matrix_with_abs(phdist->si_mat);
 }
 
+void test_gen_im_time() {
+    for (size_t i = 0; i < 10; ++i) {
+        coal_graph_node_t *graph;
+        coal_gen_im_graph_args_t args = {
+                .n1 = 10,
+                .n2 = 10,
+                .allow_back_migrations = false,
+                .num_iso_coal_events = i,
+                .migration_param = 100.0f,
+                .pop_scale1 = 10.0f,
+                .pop_scale2 = 1000.0f,
+                .mig_scale1 = 1.0f,
+                .mig_scale2 = 1.0f
+        };
+
+        coal_gen_im_graph(&graph, args);
+    }
+}
+
 
 
 int main(int argc, char **argv) {
@@ -439,7 +458,10 @@ int main(int argc, char **argv) {
     //printf("\n..\n");
     //test_im_mat_utils();
     //printf("\n..\n");
-    test_gen_im();
+  //  test_gen_im();
+    //printf("\n..\n");
+    test_gen_im_time();
     printf("\n..\n");
+
     return 0;
 }

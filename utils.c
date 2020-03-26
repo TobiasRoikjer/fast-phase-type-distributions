@@ -19,10 +19,6 @@ void expanding_arr_destroy(expanding_arr_t *arr) {
 }
 
 int expanding_arr_fit(expanding_arr_t *arr, size_t min_length) {
-    if (min_length > 1000) {
-        exit(1);
-    }
-
     while (min_length >= arr->length - 1) {
         if (((*arr->value) = realloc((*arr->value), arr->entry_size * arr->length * 2)) == NULL) {
             return 1;
@@ -53,6 +49,22 @@ void *vector_add(vector_t *vector) {
     return *p + vector->head_index++ * vector->expanding_arr->entry_size;
 }
 
+/*
+ * Note, this is a very expensive method of doing this.
+ */
+int vector_remove_entry(vector_t *vector, size_t index) {
+    char **p = (char**)(vector->expanding_arr->value);
+
+    for (size_t i = 0; i < vector->expanding_arr->entry_size; ++i) {
+        *(*p + i + index * (vector->expanding_arr->entry_size)) =
+                *(*p + i + (vector->head_index - 1) * (vector->expanding_arr->entry_size));
+    }
+
+    vector_remove_head(vector);
+
+    return 0;
+}
+
 void vector_remove_head(vector_t *vector) {
     vector->head_index--;
 }
@@ -76,11 +88,24 @@ int graph_node_destroy(graph_node_t *node) {
     // TODO
 }
 
-int graph_add_edge(graph_node_t *from, graph_node_t *to, double weight) {
+int graph_add_edge(graph_node_t *from, graph_node_t *to, weight_t weight) {
     *((weighted_edge_t*)(vector_add(from->edges))) =
             (weighted_edge_t) {.node = to, .weight = weight};
     *((weighted_edge_t*)(vector_add(to->reverse_edges))) =
             (weighted_edge_t) {.node = from, .weight = weight};
+
+    return 0;
+}
+
+int graph_redistribute_edge(graph_node_t *from, graph_node_t *to) {
+    weight_t weight;
+
+    for (size_t i = 0; i < vector_length(from->edges); i++) {
+        if (((weighted_edge_t*)vector_get(from->edges))[i].node == to) {
+            vector_remove_entry(from->edges, i);
+            break;
+        }
+    }
 
     return 0;
 }

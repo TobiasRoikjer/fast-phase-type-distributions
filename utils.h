@@ -42,6 +42,7 @@ void *vector_add(vector_t *vector);
 void vector_remove_head(vector_t *vector);
 void *vector_get(vector_t *vector);
 size_t vector_length(vector_t *vector);
+int vector_remove_entry(vector_t *vector, size_t index) ;
 
 typedef struct {
     vector_t *edges;
@@ -49,14 +50,17 @@ typedef struct {
     char data[];
 } graph_node_t;
 
+typedef double weight_t;
+
 typedef struct {
     graph_node_t *node;
-    double weight;
+    weight_t weight;
 } weighted_edge_t;
 
 int graph_node_create(graph_node_t **node, size_t data_size);
 int graph_node_destroy(graph_node_t *);
-int graph_add_edge(graph_node_t *from, graph_node_t *to, double weight);
+int graph_add_edge(graph_node_t *from, graph_node_t *to, weight_t weight);
+int graph_redistribute_edge(graph_node_t *from, graph_node_t *to);
 
 typedef struct {
     void **queue;

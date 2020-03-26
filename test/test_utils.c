@@ -56,6 +56,40 @@ static void test_vector2() {
     printf("\n");
 }
 
+static void test_vector3() {
+    vector_t *vector;
+    vector_init(&vector, sizeof(uint32_t), 4);
+
+    uint32_t i = 7;
+
+    *(uint32_t*)vector_add(vector) = i;
+    i++;
+    *(uint32_t*)vector_add(vector) = i;
+    i++;
+    *(uint32_t*)vector_add(vector) = i;
+    vector_remove_entry(vector, 2);
+    vector_remove_entry(vector, 1);
+    // 7 8 9 -> 7
+    i++;
+    *(uint32_t*)vector_add(vector) = i;
+    i++;
+    *(uint32_t*)vector_add(vector) = i;
+    i++;
+    *(uint32_t*)vector_add(vector) = i;
+    // 7 10 11 12 -> 7 10 11
+    vector_remove_entry(vector, 3);
+    // 7 10 11 12 -> 10 11
+    vector_remove_entry(vector, 0);
+
+    uint32_t *values = vector_get(vector);
+
+    for (size_t i = 0; i < vector_length(vector); ++i) {
+        printf("%"PRIu32",", values[i]);
+    }
+
+    printf("\n");
+}
+
 struct data {
     size_t foo;
     char t;
@@ -107,6 +141,40 @@ static void test_graph() {
     print_graph_node(D);
 }
 
+static void test_graph2() {
+    graph_node_t *A;
+    graph_node_t *B;
+    graph_node_t *C;
+    graph_node_t *D;
+
+
+    graph_node_create(&A, sizeof(struct data));
+    graph_node_create(&B, sizeof(struct data));
+    graph_node_create(&C, sizeof(struct data));
+    graph_node_create(&D, sizeof(struct data));
+    ((struct data*)(&A->data))->foo = 1;
+    ((struct data*)(&A->data))->t = 'A';
+    ((struct data*)(&B->data))->foo = 2;
+    ((struct data*)(&B->data))->t = 'B';
+    ((struct data*)(&C->data))->foo = 3;
+    ((struct data*)(&C->data))->t = 'C';
+    ((struct data*)(&D->data))->foo = 4;
+    ((struct data*)(&D->data))->t = 'D';
+
+    graph_add_edge(A, B, 1);
+    graph_add_edge(A, C, 2);
+    graph_add_edge(C, B, 3);
+    graph_add_edge(B, D, 4);
+
+    graph_redistribute_edge(A, B);
+    graph_redistribute_edge(C, B);
+
+    print_graph_node(A);
+    print_graph_node(B);
+    print_graph_node(C);
+    print_graph_node(D);
+}
+
 static void test_queue() {
     queue_t *queue;
     queue_create(&queue, 1);
@@ -130,10 +198,12 @@ static void test_queue() {
 }
 
 int main(int argc, char **argv) {
-    test_vector();
-    test_vector2();
-    test_graph();
-    test_queue();
+    //test_vector();
+    //test_vector2();
+    //test_vector3();
+    //test_graph();
+    test_graph2();
+    //test_queue();
 
     return 0;
 }

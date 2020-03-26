@@ -1,4 +1,5 @@
 #include "dist.h"
+#include "utils.h"
 
 #include <math.h>
 
@@ -10,6 +11,6 @@ void dist_sampling_set_random_seed(unsigned int seed) {
     srandom(seed);
 }
 
-double dist_sample_exp(double rate) {
+double dist_sample_exp(weight_t rate) {
     return -log(1 - dist_rand01())/rate;
 }
