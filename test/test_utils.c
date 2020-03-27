@@ -165,6 +165,8 @@ static void test_graph2() {
     graph_add_edge(A, C, 2);
     graph_add_edge(C, B, 3);
     graph_add_edge(B, D, 4);
+    graph_add_edge(C, D, 10);
+    graph_add_edge(C, A, 20);
 
     graph_redistribute_edge(A, B);
     graph_redistribute_edge(C, B);

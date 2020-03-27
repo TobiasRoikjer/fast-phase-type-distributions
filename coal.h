@@ -66,7 +66,23 @@ typedef struct {
 
 int coal_gen_im_graph(coal_graph_node_t **graph, coal_gen_im_graph_args_t args);
 
-int coal_graph_as_phdist(phdist_t **phdist, coal_graph_node_t *graph);
+typedef struct {
+    size_t n1;
+    size_t n2;
+    size_t left_n1;
+    size_t left_n2;
+    bool allow_back_migrations;
+    coal_param_real_t migration_param;
+    coal_param_real_t pop_scale1;
+    coal_param_real_t pop_scale2;
+    coal_param_real_t mig_scale1;
+    coal_param_real_t mig_scale2;
+} coal_gen_im_cutoff_graph_args_t;
+
+int coal_gen_im_cutoff_graph(coal_graph_node_t **graph, coal_gen_im_cutoff_graph_args_t args);
+
+int coal_graph_as_mat(weight_t ***weights, size_t *out_size, coal_graph_node_t *graph);
+int coal_graph_as_phdist_rw(phdist_t **phdist, coal_graph_node_t *graph);
 double coal_mph_expected(coal_graph_node_t *graph, size_t reward_index);
 double coal_mph_cov(coal_graph_node_t *graph,
                     size_t reward_index_1,
@@ -76,6 +92,9 @@ void coal_graph_reset(coal_graph_node_t *graph);
 
 void coal_print_graph_list(FILE *stream, coal_graph_node_t *graph,
                            size_t vec_length, size_t vec_spacing);
+void coal_print_graph_list_im(FILE *stream, coal_graph_node_t *graph,
+                              size_t vec_length, size_t vec_spacing,
+                              size_t n1, size_t n2);
 //print_graph_node(start, im_state_length(n1,n2),0);
 
 typedef struct d_phgen_args {

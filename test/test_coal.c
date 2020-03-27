@@ -88,7 +88,7 @@ void test_gen_reward() {
     coal_graph_node_t *graph;
     phdist_t *phdist;
     coal_gen_kingman_graph(&graph, 5);
-    coal_graph_as_phdist(&phdist, graph);
+    coal_graph_as_phdist_rw(&phdist, graph);
     phdist_print_as_matrix(phdist);
     phdist_print_as_matrix_col(phdist);
     printf("\n%zu\n", phdist_count_non_zeros(phdist));
@@ -389,7 +389,7 @@ void test_gen_im() {
     coal_gen_im_graph(&graph, args);
     coal_print_graph_list(stdout, graph, (args.n1 + 1)*(args.n2 + 1)*2+3,
                           (args.n1+1));
-    coal_graph_as_phdist(&phdist, graph);
+    coal_graph_as_phdist_rw(&phdist, graph);
     phdist_print_as_matrix(phdist);
     mat_print_as_matrix_with_abs(phdist->si_mat);
 }
@@ -410,6 +410,38 @@ void test_gen_im_time() {
         };
 
         coal_gen_im_graph(&graph, args);
+    }
+}
+
+void test_gen_im_cutoff() {
+    coal_graph_node_t *graph;
+    phdist_t *phdist;
+    coal_gen_im_cutoff_graph_args_t args = {
+            .n1 = 5,
+            .n2 = 0,
+            .left_n1 = 2,
+            .left_n2 = 0,
+            .allow_back_migrations = true,
+            .migration_param = 0.0f,
+            .pop_scale1 = 1.0f,
+            .pop_scale2 = 1.0f,
+            .mig_scale1 = 1.0f,
+            .mig_scale2 = 1.0f
+    };
+
+    coal_gen_im_cutoff_graph(&graph, args);
+    coal_print_graph_list_im(stdout, graph, (args.n1 + 1)*(args.n2 + 1)*2+3,
+                          (args.n1+1), args.n1, args.n2);
+    weight_t **mat;
+    size_t size;
+    coal_graph_as_mat(&mat, &size, graph);
+
+    for (size_t i = 0; i < size; ++i) {
+        for (size_t j = 0; j < size; ++j) {
+            fprintf(stdout, "%f ", mat[i][j]);
+        }
+
+        fprintf(stdout, "\n");
     }
 }
 
@@ -460,7 +492,9 @@ int main(int argc, char **argv) {
     //printf("\n..\n");
   //  test_gen_im();
     //printf("\n..\n");
-    test_gen_im_time();
+    //test_gen_im_time();
+    //printf("\n..\n");
+    test_gen_im_cutoff();
     printf("\n..\n");
 
     return 0;

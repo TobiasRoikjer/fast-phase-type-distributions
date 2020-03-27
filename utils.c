@@ -98,13 +98,28 @@ int graph_add_edge(graph_node_t *from, graph_node_t *to, weight_t weight) {
 }
 
 int graph_redistribute_edge(graph_node_t *from, graph_node_t *to) {
-    weight_t weight;
+    weight_t weight = 0;
+    weight_t weight_increase = 0;
 
     for (size_t i = 0; i < vector_length(from->edges); i++) {
-        if (((weighted_edge_t*)vector_get(from->edges))[i].node == to) {
+        weighted_edge_t *edge = &(((weighted_edge_t*)vector_get(from->edges))[i]);
+
+        if (edge->node == to) {
+            weight = edge->weight;
             vector_remove_entry(from->edges, i);
-            break;
         }
+    }
+
+    if (weight == 0) {
+        DIE_PERROR(1, "The weight was zero. Likely the edge was not found");
+    }
+
+    weight_increase = weight / vector_length(from->edges);
+
+    for (size_t i = 0; i < vector_length(from->edges); i++) {
+        weighted_edge_t *edge = &(((weighted_edge_t*)vector_get(from->edges))[i]);
+
+        edge->weight += weight_increase;
     }
 
     return 0;
