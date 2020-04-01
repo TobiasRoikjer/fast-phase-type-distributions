@@ -3,6 +3,7 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <math.h>
+#include <float.h>
 #include "coal.h"
 #include "bbst.h"
 #include "utils.h"
@@ -308,30 +309,34 @@ static void print_vector_spacing(FILE *stream,vec_entry_t *v, size_t nmemb, size
     fprintf(stream, ")");
 }
 
-static coal_graph_node_t *_get_abs_vertex(coal_graph_node_t *graph) {
+static void _get_abs_vertex(coal_graph_node_t **abs_vertex, coal_graph_node_t *graph) {
+    if (graph->data.visited) {
+        return;
+    }
+
+    graph->data.visited = true;
+
     weighted_edge_t *values = vector_get(graph->edges);
 
     if (vector_length(graph->edges) == 0) {
-        return graph;
-    }
-
-    for (size_t i = 0; i < vector_length(graph->edges); i++) {
-        if (!((coal_graph_node_t*)values[i].node)->data.visited) {
-            ((coal_graph_node_t*)values[i].node)->data.visited = true;
-            coal_graph_node_t *res = _get_abs_vertex((coal_graph_node_t*)values[i].node);
-
-            if (res != NULL) {
-                return res;
-            }
+        if (*abs_vertex == NULL || *abs_vertex == graph) {
+            *abs_vertex = graph;
+        } else {
+            DIE_PERROR(1, "Found multiple absorbing vertices\n");
         }
     }
 
-    return NULL;
+    for (size_t i = 0; i < vector_length(graph->edges); i++) {
+        _get_abs_vertex(abs_vertex, (coal_graph_node_t*)values[i].node);
+    }
 }
 
 static coal_graph_node_t *get_abs_vertex(coal_graph_node_t *graph) {
-    coal_graph_reset(graph);
-    return _get_abs_vertex(graph);
+    reset_graph_visited(graph);
+    coal_graph_node_t *abs_vertex = NULL;
+    _get_abs_vertex(&abs_vertex, graph);
+
+    return abs_vertex;
 }
 
 int coal_gen_erlang_phdist(phdist_t **phdist, size_t samples) {
@@ -555,7 +560,7 @@ static void coal_graph_node_create(coal_graph_node_t **out,
     (*out)->data.state_vec = state_vec;
     (*out)->data.state = state;
     (*out)->data.vertex_index = -1;
-    (*out)->data.reset_flip = false;
+    (*out)->data.reset_int = 0;
 }
 
 static int kingman_visit_vertex(coal_graph_node_t **out,
@@ -628,13 +633,14 @@ static void print_graph_node(coal_graph_node_t *node, size_t vec_length, size_t 
             fprintf(stderr, "\t");
         }
 
-        fprintf(stderr, "Edge weight %f:\n ", values[i].weight);
+        fprintf(stderr, "Edge weight %Lf:\n ", values[i].weight);
         print_graph_node((coal_graph_node_t*)values[i].node,vec_length, indent+1);
         fprintf(stderr, "\n");
     }
 }
 
 static void _print_graph_list(FILE *stream, coal_graph_node_t *node,
+        bool indexed,
         size_t vec_length, size_t vec_spacing) {
     if (node->data.visited) {
         return;
@@ -645,29 +651,45 @@ static void _print_graph_list(FILE *stream, coal_graph_node_t *node,
     fprintf(stream, "Node: ");
     print_vector_spacing(stream, node->data.state_vec,
             vec_length, vec_spacing);
+    if (indexed) {
+        fprintf(stream, " (%zu)", node->data.vertex_index);
+    }
     fprintf(stream, ":\n");
 
     weighted_edge_t *values = vector_get(node->edges);
 
     for (size_t i = 0; i < vector_length(node->edges); i++) {
         fprintf(stream, "\t");
-        fprintf(stream, "(%f) ", values[i].weight);
+        fprintf(stream, "(%Lf) ", values[i].weight);
         print_vector_spacing(stream,((coal_graph_node_t*)values[i].node)->data.state_vec,
                 vec_length, vec_spacing);
+        if (indexed) {
+            fprintf(stream, " (%zu)", ((coal_graph_node_t*)values[i].node)->data.vertex_index);
+        }
+        if (vector_length(((coal_graph_node_t*)values[i].node)->edges) == 0) {
+            fprintf(stream, " (abs)");
+        }
         fprintf(stream, "\n");
     }
 
     fprintf(stream, "\n");
     for (size_t i = 0; i < vector_length(node->edges); i++) {
         _print_graph_list(stream, (coal_graph_node_t *) values[i].node,
+                indexed,
                 vec_length, vec_spacing);
     }
 }
 
 void coal_print_graph_list(FILE *stream, coal_graph_node_t *graph,
+                           bool indexed,
                            size_t vec_length, size_t vec_spacing) {
-    coal_graph_reset(graph);
-    _print_graph_list(stream, graph, vec_length, vec_spacing);
+    if (indexed) {
+        size_t largest_index;
+        coal_label_vertex_index(&largest_index, graph);
+    }
+
+    reset_graph_visited(graph);
+    _print_graph_list(stream, graph, indexed, vec_length, vec_spacing);
     fflush(stream);
 }
 
@@ -680,6 +702,7 @@ void insert_into_weight_mat(weight_t **weights, coal_graph_node_t *node) {
     }
 
     node->data.visited = true;
+
 
     weighted_edge_t *values = vector_get(node->edges);
 
@@ -706,7 +729,7 @@ int coal_graph_as_mat(weight_t ***weights, size_t *out_size, coal_graph_node_t *
     *weights = malloc(sizeof(weight_t*)*size);
 
     for (size_t i = 0; i < size; ++i) {
-        (*weights)[i] = calloc(size, sizeof(weight_t*));
+        (*weights)[i] = calloc(size, sizeof(weight_t));
     }
 
     insert_into_weight_mat(*weights, graph);
@@ -1351,6 +1374,103 @@ im_visit_vertex(coal_graph_node_t **out, im_state_t *state,
     }
 }
 
+
+static int
+im_ss_visit_vertex(coal_graph_node_t **out,
+                avl_vec_node_t *bst,
+                vec_entry_t npop1, vec_entry_t npop2,
+                bool mig1to2, bool mig2to1,
+                coal_gen_im_graph_args_t *args) {
+    const size_t vector_length = 4;
+    vec_entry_t *state = calloc(vector_length, sizeof(vec_entry_t));
+    if (npop1 + npop2 == 1) {
+        // If only one left, use left population as absorbing state
+        state[0] = 1;
+        state[1] = 0;
+    } else {
+        state[0] = npop1;
+        state[1] = npop2;
+    }
+    state[2] = (vec_entry_t) mig1to2;
+    state[3] = (vec_entry_t) mig2to1;
+    avl_vec_node_t *bst_node = avl_vec_find(bst, state, vector_length);
+
+    if (bst_node != NULL) {
+        *out = bst_node->entry;
+        return 0;
+    } else {
+        coal_graph_node_create(out, state, state);
+
+        avl_vec_insert(&bst, state, *out, vector_length);
+
+        // Coal events
+        if (npop1 > 1) {
+            coal_param_real_t scale = args->pop_scale1;
+
+            if (scale >= LDBL_EPSILON) {
+                weight_t rate = scale * npop1 * (npop1 - 1) / 2.0f;
+
+                coal_graph_node_t *to;
+                im_ss_visit_vertex(&to, bst,
+                                   npop1 - 1, npop2,
+                                   true, true, args);
+                graph_add_edge((graph_node_t *) *out, (graph_node_t *) to, rate);
+            }
+        }
+
+        if (npop2 > 1) {
+            coal_param_real_t scale = args->pop_scale1;
+
+            if (scale >= LDBL_EPSILON) {
+                weight_t rate = scale * npop2 * (npop2 - 1) / 2.0f;
+
+                coal_graph_node_t *to;
+                im_ss_visit_vertex(&to, bst,
+                                   npop1, npop2 - 1,
+                                   true, true, args);
+                graph_add_edge((graph_node_t *) *out, (graph_node_t *) to, rate);
+            }
+        }
+
+        if (npop1 + npop2 > 1) {
+            // Mig events
+            if (mig1to2 && npop1 > 0) {
+                coal_param_real_t scale = args->pop_scale1 * args->migration_param * args->mig_scale1;
+
+                if (scale >= LDBL_EPSILON) {
+                    weight_t rate = scale * npop1;
+
+                    bool mig = args->allow_back_migrations;
+
+                    coal_graph_node_t *to;
+                    im_ss_visit_vertex(&to, bst,
+                                       npop1 - 1, npop2 + 1,
+                                       true, mig, args);
+                    graph_add_edge((graph_node_t *) *out, (graph_node_t *) to, rate);
+                }
+            }
+
+            if (mig2to1 && npop2 > 0) {
+                coal_param_real_t scale = args->pop_scale2 * args->migration_param * args->mig_scale2;
+
+                if (scale >= LDBL_EPSILON) {
+                    weight_t rate = scale * npop2;
+
+                    bool mig = args->allow_back_migrations;
+
+                    coal_graph_node_t *to;
+                    im_ss_visit_vertex(&to, bst,
+                                       npop1 + 1, npop2 - 1,
+                                       mig, true, args);
+                    graph_add_edge((graph_node_t *) *out, (graph_node_t *) to, rate);
+                }
+            }
+        }
+
+        return 0;
+    }
+}
+
 int coal_gen_im_graph(coal_graph_node_t **graph, coal_gen_im_graph_args_t args) {
     size_t n1 = args.n1;
     size_t n2 = args.n2;
@@ -1405,21 +1525,31 @@ int coal_gen_im_graph(coal_graph_node_t **graph, coal_gen_im_graph_args_t args) 
     im_visit_vertex(&state_graph, initial, initial_vec, BST,
                     0, im_state_length(n1, n2), &args);
 
-    im_state_t *start_state;
-    im_state_init(&start_state, n1, n2);
-
-    vec_entry_t *start_state_vec;
-    im_state_as_vec(&start_state_vec, start_state, n1, n2);
-
-    coal_graph_node_t *start;
-    coal_graph_node_create(&start, start_state_vec, start_state);
-    graph_add_edge((graph_node_t*) start,
-                   (graph_node_t*) state_graph, 1);
-
-    *graph = start;
+    *graph = state_graph;
 
     return 0;
 }
+
+int coal_gen_im_ss_graph(coal_graph_node_t **graph, coal_gen_im_graph_args_t args) {
+    // Add an entry to the BST so we don't have a null pointer
+    vec_entry_t *unused_vec = calloc(4, sizeof(vec_entry_t));
+    unused_vec[0]=0;
+    unused_vec[1]=0;
+    unused_vec[2]=0;
+    unused_vec[3]=0;
+    avl_vec_node_t *BST;
+    avl_vec_node_create(&BST, unused_vec, NULL, NULL);
+
+    coal_graph_node_t *state_graph;
+
+    im_ss_visit_vertex(&state_graph, BST, args.n1, args.n2,
+            true, true, &args);
+
+    *graph = state_graph;
+
+    return 0;
+}
+
 
 static size_t count_lineages_mat(vec_entry_t **mat, size_t n1, size_t n2) {
     size_t sum = 0;
@@ -1452,7 +1582,6 @@ int cutoff_remove_wrong_left(coal_graph_node_t *graph,
 
     for (size_t i = 0; i < vector_length(graph->edges); i++) {
         coal_graph_node_t *child = ((coal_graph_node_t*)values[i].node);
-
 
         bool has_coalesced;
 
@@ -1496,6 +1625,67 @@ int cutoff_remove_wrong_left(coal_graph_node_t *graph,
     }
 }
 
+coal_graph_node_t *debug_graph;
+
+int cutoff_redirect_wrong_left(coal_graph_node_t **correct_vertex,
+                               coal_graph_node_t *graph,
+                               coal_graph_node_t *absorbing_vertex,
+                               size_t n1, size_t n2,
+                               size_t left1, size_t left2) {
+    if (graph->data.visited) {
+        return 0;
+    }
+
+    graph->data.visited = true;
+
+    size_t parent_lineages = graph->data.state_vec[0]+graph->data.state_vec[1];
+    weighted_edge_t *values = vector_get(graph->edges);
+
+    for (size_t i = 0; i < vector_length(graph->edges); i++) {
+        coal_graph_node_t *child = ((coal_graph_node_t*)values[i].node);
+        size_t child_lineages = child->data.state_vec[0]+child->data.state_vec[1];
+
+        bool has_coalesced;
+
+        if (child_lineages < parent_lineages) {
+            has_coalesced = true;
+        } else {
+            has_coalesced = false;
+        }
+
+        if (has_coalesced && child_lineages <= left1 + left2) {
+            // It has coalesced, and we have the right or a smaller total
+            // number of lineages left
+
+            if (child->data.state_vec[0] != left1 ||
+                child->data.state_vec[1] != left2) {
+                // We do not kill the edge in this case, but make the child
+                // vertex into the absorbing state
+                values[i].node = (graph_node_t*)absorbing_vertex;
+            } else {
+                //fprintf(stderr, "We have the correct vertex\n");
+                //fprintf(stderr, "Before:\n");
+                //coal_print_graph_list(stderr, debug_graph, false, 4, 4);
+                // This is the correct vertex
+                *correct_vertex = child;
+                // Remove all the edges from the child
+                vector_clear(child->edges);
+                //fprintf(stderr, "Post clear:\n");
+                //coal_print_graph_list(stderr, debug_graph, false, 4, 4);
+                if (absorbing_vertex != child) {
+                    // Add edge to absorbing vertex
+                    graph_add_edge((graph_node_t *) child,
+                                   (graph_node_t *) absorbing_vertex, 1);
+                }
+                //fprintf(stderr, "Post abs edge:\n");
+                //coal_print_graph_list(stderr, debug_graph, false, 4, 4);
+            }
+        }
+
+        cutoff_redirect_wrong_left(correct_vertex, child, absorbing_vertex, n1, n2, left1, left2);
+    }
+}
+
 int coal_gen_im_cutoff_graph(coal_graph_node_t **graph, coal_gen_im_cutoff_graph_args_t args) {
     size_t n1 = args.n1;
     size_t n2 = args.n2;
@@ -1532,15 +1722,54 @@ int coal_gen_im_cutoff_graph(coal_graph_node_t **graph, coal_gen_im_cutoff_graph
     coal_graph_reset(im_graph);
     cutoff_remove_wrong_left(im_graph, absorbing_vertex, n1, n2, left1, left2);
 
-    // Remove starting vertex
-    weighted_edge_t *start_edge = &(((weighted_edge_t*)vector_get(im_graph->edges))[0]);
-    im_graph = (coal_graph_node_t *)start_edge->node;
-
     *graph = im_graph;
 
     return 0;
 }
 
+int coal_gen_im_prob_vertex_graph(coal_graph_node_t **graph,
+        coal_graph_node_t **correct_vertex,
+        coal_gen_im_cutoff_graph_args_t args) {
+    size_t n1 = args.n1;
+    size_t n2 = args.n2;
+    size_t left1 = args.left_n1;
+    size_t left2 = args.left_n2;
+
+    if (left1 + left2 > n1 + n2) {
+        DIE_PERROR(1, "There has to be at most n1+n2 left. Got n1: %zu, n2: %zu, left1: %zu, left2: %zu\n",
+                   n1, n2, left1, left2);
+    }
+
+    if (left1 + left2 == 0) {
+        DIE_PERROR(1, "There has to be at least one lineage left. Got n1: %zu, n2: %zu, left1: %zu, left2: %zu\n",
+                   n1, n2, left1, left2);
+    }
+
+    coal_gen_im_graph_args_t im_args = (coal_gen_im_graph_args_t) {
+            .n1 = args.n1,
+            .n2 = args.n2,
+            .num_iso_coal_events = n1 + n2 - 1,
+            .allow_back_migrations = args.allow_back_migrations,
+            .migration_param = args.migration_param,
+            .pop_scale1 = args.pop_scale1,
+            .pop_scale2 = args.pop_scale2,
+            .mig_scale1 = args.mig_scale1,
+            .mig_scale2 = args.mig_scale2
+    };
+
+
+    coal_graph_node_t *im_graph;
+    coal_gen_im_ss_graph(&im_graph, im_args);
+    coal_graph_node_t *absorbing_vertex = get_abs_vertex(im_graph);
+
+    coal_graph_reset(im_graph);
+    debug_graph = im_graph;
+    cutoff_redirect_wrong_left(correct_vertex, im_graph, absorbing_vertex, n1, n2, left1, left2);
+
+    *graph = im_graph;
+
+    return 0;
+}
 
 int d_ph_gen_fun(double **out, size_t from, size_t to, void *args) {
     d_phgen_args_t *arguments = (d_phgen_args_t*)args;
@@ -1640,39 +1869,38 @@ int coal_seg_sites(d_dist_t **dist, phdist_t *phdist) {
     return 0;
 }
 
-void _reset_graph_visited(coal_graph_node_t *node, bool reset_flip) {
-    // TODO: This visits multiple times
-    if (node->data.reset_flip == reset_flip) {
+void _reset_graph_visited(coal_graph_node_t *node, size_t reset_int) {
+    if (node->data.reset_int == reset_int) {
         return;
     }
 
-    node->data.reset_flip = !node->data.reset_flip;
+    node->data.reset_int = reset_int;
 
     weighted_edge_t *values = vector_get(node->edges);
 
     for (size_t i = 0; i < vector_length(node->edges); i++) {
-        _reset_graph_visited((coal_graph_node_t *) values[i].node, reset_flip);
+        _reset_graph_visited((coal_graph_node_t *) values[i].node, reset_int);
     }
 
     node->data.visited = false;
 }
 
 void reset_graph_visited(coal_graph_node_t *node) {
-    _reset_graph_visited(node, !node->data.reset_flip);
+    _reset_graph_visited(node, node->data.reset_int + 1);
 }
 
-void _reset_graph(coal_graph_node_t *node, bool reset_flip) {
+void _reset_graph(coal_graph_node_t *node, size_t reset_int) {
     // TODO: This visits multiple times
-    if (node->data.reset_flip == reset_flip) {
+    if (node->data.reset_int == reset_int) {
         return;
     }
 
-    node->data.reset_flip = !node->data.reset_flip;
+    node->data.reset_int = reset_int;
 
     weighted_edge_t *values = vector_get(node->edges);
 
     for (size_t i = 0; i < vector_length(node->edges); i++) {
-        _reset_graph((coal_graph_node_t *) values[i].node, reset_flip);
+        _reset_graph((coal_graph_node_t *) values[i].node, reset_int);
     }
 
     node->data.full_path_value = -1;
@@ -1684,7 +1912,7 @@ void _reset_graph(coal_graph_node_t *node, bool reset_flip) {
 }
 
 void reset_graph(coal_graph_node_t *node) {
-    _reset_graph(node, !node->data.reset_flip);
+    _reset_graph(node, node->data.reset_int + 1);
 }
 
 void coal_graph_reset(coal_graph_node_t *graph) {
@@ -1706,7 +1934,7 @@ double _coal_mph_expected(coal_graph_node_t *node, size_t reward_index) {
     }
 
     for (size_t i = 0; i < vector_length(node->edges); i++) {
-        double prob = values[i].weight / rate;
+        weight_t prob = values[i].weight / rate;
         sum += prob * _coal_mph_expected((coal_graph_node_t*) values[i].node,
                 reward_index);
     }
@@ -1838,21 +2066,30 @@ double coal_mph_cov(coal_graph_node_t *graph,
  * Also ensures that the absorbing vertex has index 0
  */
 int coal_label_vertex_index(size_t *largest_index, coal_graph_node_t *graph) {
-    reset_graph(graph);
+    coal_graph_node_t *abs_vertex;
+    abs_vertex = get_abs_vertex(graph);
+    reset_graph_visited(graph);
     queue_t *queue;
     queue_create(&queue, 8);
     size_t index = 0;
+
+    if (abs_vertex == NULL) {
+        DIE_PERROR(1, "Absorbing vertex was not found\n");
+    }
+
     // The absorbing vertex should have index 0
-    queue_enqueue(queue, get_abs_vertex(graph));
+    queue_enqueue(queue, abs_vertex);
 
     queue_enqueue(queue, graph);
 
     while(!queue_empty(queue)) {
         coal_graph_node_t *node = queue_dequeue(queue);
 
-        if (node->data.vertex_index != -1) {
+        if (node->data.visited) {
             continue;
         }
+
+        node->data.visited = true;
 
         weighted_edge_t *values = vector_get(node->edges);
 
@@ -1869,7 +2106,8 @@ int coal_label_vertex_index(size_t *largest_index, coal_graph_node_t *graph) {
 }
 
 static void _print_graph_list_im(FILE *stream, coal_graph_node_t *node,
-                              size_t vec_length, size_t vec_spacing, size_t n1, size_t n2) {
+                                 bool indexed,
+                                 size_t vec_length, size_t vec_spacing, size_t n1, size_t n2) {
     if (node->data.visited) {
         return;
     }
@@ -1879,6 +2117,9 @@ static void _print_graph_list_im(FILE *stream, coal_graph_node_t *node,
     fprintf(stream, "Node: ");
     print_vector_spacing(stream, node->data.state_vec,
                          vec_length, vec_spacing);
+    if (indexed) {
+        fprintf(stream, " (%zu)", node->data.vertex_index);
+    }
     fprintf(stream, ":\n");
 
     weighted_edge_t *values = vector_get(node->edges);
@@ -1899,32 +2140,46 @@ static void _print_graph_list_im(FILE *stream, coal_graph_node_t *node,
             } else {
                 type = "C1";
             }
-        } else {
+        } else if (cpop2 < ppop2) {
             if (cpop1 > ppop1) {
                 type = "M21";
             } else {
                 type = "C2";
             }
+        } else {
+            type = "NONE";
         }
 
         fprintf(stream, "\t");
-        fprintf(stream, "(%s) (%f) ", type, values[i].weight);
+        fprintf(stream, "(%s) (%Lf) ", type, values[i].weight);
         print_vector_spacing(stream,child->data.state_vec,
                              vec_length, vec_spacing);
+        if (indexed) {
+            fprintf(stream, " (%zu)", child->data.vertex_index);
+        }
+
+        if (vector_length(child->edges) == 0) {
+            fprintf(stream, " (abs)");
+        }
         fprintf(stream, "\n");
     }
 
     fprintf(stream, "\n");
     for (size_t i = 0; i < vector_length(node->edges); i++) {
         _print_graph_list_im(stream, (coal_graph_node_t *) values[i].node,
-                          vec_length, vec_spacing, n1, n2);
+                          indexed, vec_length, vec_spacing, n1, n2);
     }
 }
 
 void coal_print_graph_list_im(FILE *stream, coal_graph_node_t *graph,
+                              bool indexed,
                               size_t vec_length, size_t vec_spacing,
                               size_t n1, size_t n2) {
-    coal_graph_reset(graph);
-    _print_graph_list_im(stream, graph, vec_length, vec_spacing, n1, n2);
+    if (indexed) {
+        size_t largest_index;
+        coal_label_vertex_index(&largest_index, graph);
+    }
+    reset_graph_visited(graph);
+    _print_graph_list_im(stream, graph, indexed, vec_length, vec_spacing, n1, n2);
     fflush(stream);
 }

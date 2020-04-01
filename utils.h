@@ -42,6 +42,7 @@ void *vector_add(vector_t *vector);
 void vector_remove_head(vector_t *vector);
 void *vector_get(vector_t *vector);
 size_t vector_length(vector_t *vector);
+void vector_clear(vector_t *vector);
 int vector_remove_entry(vector_t *vector, size_t index) ;
 
 typedef struct {
@@ -50,7 +51,7 @@ typedef struct {
     char data[];
 } graph_node_t;
 
-typedef double weight_t;
+typedef long double weight_t;
 
 typedef struct {
     graph_node_t *node;

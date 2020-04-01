@@ -35,7 +35,7 @@ typedef struct {
     double descendants_exp_sum;
     bool visited;
     ssize_t vertex_index;
-    bool reset_flip;
+    size_t reset_int;
     void *pointer;
 } coal_graph_node_data_t;
 
@@ -80,6 +80,8 @@ typedef struct {
 } coal_gen_im_cutoff_graph_args_t;
 
 int coal_gen_im_cutoff_graph(coal_graph_node_t **graph, coal_gen_im_cutoff_graph_args_t args);
+int coal_gen_im_prob_vertex_graph(coal_graph_node_t **graph, coal_graph_node_t **correct_vertex, coal_gen_im_cutoff_graph_args_t args);
+int coal_gen_im_ss_graph(coal_graph_node_t **graph, coal_gen_im_graph_args_t args);
 
 int coal_graph_as_mat(weight_t ***weights, size_t *out_size, coal_graph_node_t *graph);
 int coal_graph_as_phdist_rw(phdist_t **phdist, coal_graph_node_t *graph);
@@ -91,8 +93,10 @@ int coal_label_vertex_index(size_t *largest_index, coal_graph_node_t *graph);
 void coal_graph_reset(coal_graph_node_t *graph);
 
 void coal_print_graph_list(FILE *stream, coal_graph_node_t *graph,
+                           bool indexed,
                            size_t vec_length, size_t vec_spacing);
 void coal_print_graph_list_im(FILE *stream, coal_graph_node_t *graph,
+                              bool indexed,
                               size_t vec_length, size_t vec_spacing,
                               size_t n1, size_t n2);
 //print_graph_node(start, im_state_length(n1,n2),0);

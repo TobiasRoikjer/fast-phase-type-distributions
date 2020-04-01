@@ -65,6 +65,14 @@ int vector_remove_entry(vector_t *vector, size_t index) {
     return 0;
 }
 
+void vector_clear(vector_t *vector) {
+    size_t entries = vector_length(vector);
+    
+    for (size_t i = 0; i < entries; ++i) {
+        vector_remove_head(vector);
+    }
+}
+
 void vector_remove_head(vector_t *vector) {
     vector->head_index--;
 }

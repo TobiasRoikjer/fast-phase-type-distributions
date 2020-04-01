@@ -34,7 +34,8 @@ int main(int argc, char **argv) {
             .mig_scale2 = mig_scale2
     };
 
-    coal_gen_im_cutoff_graph(&graph, args);
+    coal_graph_node_t *correct;
+    coal_gen_im_prob_vertex_graph(&graph, &correct, args);
     weight_t **mat;
     size_t size;
     coal_graph_as_mat(&mat, &size, graph);
@@ -46,6 +47,9 @@ int main(int argc, char **argv) {
 
         fprintf(stdout, "\n");
     }
+    
+    // Print correct vertex
+    fprintf(stdout, "%zu\n", correct->data.vertex_index);
 
     return 0;
 }

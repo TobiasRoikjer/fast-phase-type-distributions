@@ -89,6 +89,35 @@ static void test_vector3() {
 
     printf("\n");
 }
+static void test_vector4() {
+    vector_t *vector;
+    vector_init(&vector, sizeof(uint32_t), 4);
+
+    uint32_t i = 7;
+
+    *(uint32_t*)vector_add(vector) = i;
+    i++;
+    *(uint32_t*)vector_add(vector) = i;
+    i++;
+    *(uint32_t*)vector_add(vector) = i;
+    vector_clear(vector);
+    // 7 8 9 -> []
+    i++;
+    *(uint32_t*)vector_add(vector) = i;
+    i++;
+    *(uint32_t*)vector_add(vector) = i;
+    i++;
+    *(uint32_t*)vector_add(vector) = i;
+    // [] -> 10 11 12
+    
+    uint32_t *values = vector_get(vector);
+
+    for (size_t i = 0; i < vector_length(vector); ++i) {
+        printf("%"PRIu32",", values[i]);
+    }
+
+    printf("\n");
+}
 
 struct data {
     size_t foo;
@@ -203,8 +232,9 @@ int main(int argc, char **argv) {
     //test_vector();
     //test_vector2();
     //test_vector3();
+    test_vector4();
     //test_graph();
-    test_graph2();
+    //test_graph2();
     //test_queue();
 
     return 0;
