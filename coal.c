@@ -1419,7 +1419,7 @@ im_ss_visit_vertex(coal_graph_node_t **out,
         }
 
         if (npop2 > 1) {
-            coal_param_real_t scale = args->pop_scale1;
+            coal_param_real_t scale = args->pop_scale2;
 
             if (scale >= LDBL_EPSILON) {
                 weight_t rate = scale * npop2 * (npop2 - 1) / 2.0f;
@@ -1568,6 +1568,8 @@ static size_t count_lineages(im_state_t *state, size_t n1, size_t n2) {
             count_lineages_mat(state->mat2, n1, n2);
 }
 
+coal_graph_node_t *debug_graph;
+
 int cutoff_remove_wrong_left(coal_graph_node_t *graph,
         coal_graph_node_t *absorbing_vertex,
         size_t n1, size_t n2,
@@ -1578,54 +1580,145 @@ int cutoff_remove_wrong_left(coal_graph_node_t *graph,
 
     graph->data.visited = true;
 
+    size_t parent_lineages = graph->data.state_vec[0]+graph->data.state_vec[1];
+    weighted_edge_t *values = vector_get(graph->edges);
+
+    if (vector_length(graph->edges) > 0) {
+        for (ssize_t i = vector_length(graph->edges) - 1; i >= 0; i--) {
+            coal_graph_node_t *child = ((coal_graph_node_t *) values[i].node);
+            size_t child_lineages = child->data.state_vec[0] + child->data.state_vec[1];
+
+            bool has_coalesced;
+
+            if (child_lineages < parent_lineages) {
+                has_coalesced = true;
+            } else {
+                has_coalesced = false;
+            }
+
+            print_vector_spacing(stderr, graph->data.state_vec, 4, 4);
+            fprintf(stderr, "->");
+            print_vector_spacing(stderr, child->data.state_vec, 4, 4);
+            fprintf(stderr, " coal: %d, clin: %zu", has_coalesced, child_lineages);
+            fprintf(stderr, "\n");
+
+            if (has_coalesced && child_lineages == left1 + left2) {
+                // It has coalesced, and we have the right or a smaller total
+                // number of lineages left
+
+                if (child == absorbing_vertex) {
+                    // This edge is fine
+                    continue;
+                }
+
+                //if (child->data.state_vec[0] != left1 || child->data.state_vec[1] != left2) {
+                if (false) {
+                    fprintf(stderr, "Killing edge!\n");
+                    graph_redistribute_edge((graph_node_t *) graph, (graph_node_t *) child);
+                } else {
+                    fprintf(stderr, "THIS SHOULD BE THE ABSORBING VERTEX:");
+                    print_vector_spacing(stderr, child->data.state_vec, 4, 4);
+                    fprintf(stderr, "\n");
+                    fprintf(stderr, "Making edge to abs\n");
+                    vector_clear(child->edges);
+
+                    for (size_t j = 0; j < vector_length(graph->edges); j++) {
+                        coal_graph_node_t *child2 = ((coal_graph_node_t *) values[j].node);
+
+                        if (child2 == absorbing_vertex) {
+                            DIE_PERROR(1, "Absorbing vertex already exists\n");
+                        }
+                    }
+
+                    // Make edge go to the absorbing vertex instead of child
+                    //values[i].node = (graph_node_t*)absorbing_vertex;
+                    // TODO: for now we just add a very weighted edge
+                    graph_add_edge((graph_node_t *) child, (graph_node_t *) absorbing_vertex, 99999);
+                }
+            }
+        }
+    }
+
+    for (size_t i = 0; i < vector_length(graph->edges); i++) {
+        coal_graph_node_t *child = ((coal_graph_node_t*)values[i].node);
+        size_t child_lineages = child->data.state_vec[0] + child->data.state_vec[1];
+
+        if (child_lineages > left1 + left2) {
+            cutoff_remove_wrong_left(child, absorbing_vertex, n1, n2, left1, left2);
+        }
+    }
+}
+
+int remove_nonedge_state(coal_graph_node_t **removed,
+        coal_graph_node_t *graph,
+        coal_graph_node_t *absorbing_vertex) {
+    if (graph->data.visited) {
+        return 0;
+    }
+
+    graph->data.visited = true;
+
     weighted_edge_t *values = vector_get(graph->edges);
 
     for (size_t i = 0; i < vector_length(graph->edges); i++) {
         coal_graph_node_t *child = ((coal_graph_node_t*)values[i].node);
+        size_t child_edges = vector_length(child->edges);
+
+
+        print_vector_spacing(stderr, graph->data.state_vec, 4, 4);
+        fprintf(stderr, "->");
+        print_vector_spacing(stderr, child->data.state_vec, 4, 4);
+        fprintf(stderr, " edges: %zu", child_edges);
+        fprintf(stderr, "\n");
+
+        if (child_edges == 0 && child != absorbing_vertex) {
+            *removed = child;
+            graph_redistribute_edge((graph_node_t *)graph, (graph_node_t *)child);
+            fprintf(stderr, "NE: Killing edge");
+            //print_vector_spacing(stderr, graph->data.state_vec, 4, 4);
+            //fprintf(stderr, " to ");
+            //print_vector_spacing(stderr, child->data.state_vec, 4, 4);
+            //fprintf(stderr, "\n");
+            return 0;
+        }
+
+        remove_nonedge_state(removed, child, absorbing_vertex);
+    }
+
+    return 0;
+}
+
+int cutoff_remove_after_left(coal_graph_node_t *graph,
+                             coal_graph_node_t *absorbing_vertex,
+                             size_t left) {
+    if (graph->data.visited) {
+        return 0;
+    }
+
+    graph->data.visited = true;
+
+    size_t parent_lineages = graph->data.state_vec[0]+graph->data.state_vec[1];
+    weighted_edge_t *values = vector_get(graph->edges);
+
+    for (size_t i = 0; i < vector_length(graph->edges); i++) {
+        coal_graph_node_t *child = ((coal_graph_node_t*)values[i].node);
+        size_t child_lineages = child->data.state_vec[0]+child->data.state_vec[1];
 
         bool has_coalesced;
 
-        if (count_lineages((im_state_t*)child->data.state, n1, n2) <
-                count_lineages((im_state_t*)graph->data.state, n1, n2)) {
+        if (child_lineages < parent_lineages) {
             has_coalesced = true;
         } else {
             has_coalesced = false;
         }
 
-        /*fprintf(stderr, "Parent: ");
-        print_vector_spacing(stderr, graph->data.state_vec, im_state_length(n1, n2), n1+1);
-        fprintf(stderr, "\nChild: ");
-        print_vector_spacing(stderr, child->data.state_vec, im_state_length(n1, n2), n1+1);
-        fprintf(stderr, "\n has_coalesced: %i\n", has_coalesced);
-        fprintf(stderr, "l1: %zu, l2: %zu, childmat1: %zu, childmat2: %zu\n",
-                left1, left2,
-                count_lineages_mat(((im_state_t *)child->data.state)->mat1, n1, n2),
-                count_lineages_mat(((im_state_t *)child->data.state)->mat2, n1, n2));
-        */
-
-        if (has_coalesced && count_lineages(child->data.state, n1, n2) <= left1 + left2) {
-            // It has coalesced, and we have the right or a smaller total
-            // number of lineages left
-
-            if (count_lineages_mat(((im_state_t *)child->data.state)->mat1, n1, n2) != left1 ||
-                    count_lineages_mat(((im_state_t *)child->data.state)->mat2, n1, n2) != left2) {
-                //fprintf(stderr, "Killing edge!\n");
-                graph_redistribute_edge((graph_node_t *)graph, (graph_node_t *)child);
-                graph->data.visited = false;
-                return cutoff_remove_wrong_left(graph, absorbing_vertex, n1, n2, left1, left2);
-            } else {
-                //fprintf(stderr, "THIS SHOULD BE THE ABSORBING VERTEX:\n");
-                //print_vector_spacing(stderr, child->data.state_vec, im_state_length(n1, n2), n1+1);
-                // Make edge go to the absorbing vertex instead of child
-                values[i].node = (graph_node_t*)absorbing_vertex;
-            }
+        if (has_coalesced && child_lineages <= left) {
+            values[i].node = (graph_node_t*)absorbing_vertex;
         }
 
-        cutoff_remove_wrong_left(child, absorbing_vertex, n1, n2, left1, left2);
+        cutoff_remove_after_left(child, absorbing_vertex, left);
     }
 }
-
-coal_graph_node_t *debug_graph;
 
 int cutoff_redirect_wrong_left(coal_graph_node_t **correct_vertex,
                                coal_graph_node_t *graph,
@@ -1686,6 +1779,47 @@ int cutoff_redirect_wrong_left(coal_graph_node_t **correct_vertex,
     }
 }
 
+int coal_gen_im_pure_cutoff_graph(coal_graph_node_t **graph, coal_gen_im_pure_cutoff_graph_args_t args) {
+    size_t n1 = args.n1;
+    size_t n2 = args.n2;
+    size_t left = args.left;
+
+    if (left > n1 + n2) {
+        DIE_PERROR(1, "There has to be at most n1+n2 left. Got n1: %zu, n2: %zu, left: %zu\n",
+                   n1, n2, left);
+    }
+
+    if (left == 0) {
+        DIE_PERROR(1, "There has to be at least one lineage left. Got n1: %zu, n2: %zu, left: %zu\n",
+                   n1, n2, left);
+    }
+
+    coal_gen_im_graph_args_t im_args = (coal_gen_im_graph_args_t) {
+            .n1 = args.n1,
+            .n2 = args.n2,
+            .num_iso_coal_events = n1 + n2 - 1,
+            .allow_back_migrations = args.allow_back_migrations,
+            .migration_param = args.migration_param,
+            .pop_scale1 = args.pop_scale1,
+            .pop_scale2 = args.pop_scale2,
+            .mig_scale1 = args.mig_scale1,
+            .mig_scale2 = args.mig_scale2
+    };
+
+
+    coal_graph_node_t *im_graph;
+    coal_gen_im_ss_graph(&im_graph, im_args);
+    coal_graph_node_t *absorbing_vertex = get_abs_vertex(im_graph);
+
+    coal_graph_reset(im_graph);
+    cutoff_remove_after_left(im_graph, absorbing_vertex, left);
+
+    *graph = im_graph;
+
+    return 0;
+}
+
+
 int coal_gen_im_cutoff_graph(coal_graph_node_t **graph, coal_gen_im_cutoff_graph_args_t args) {
     size_t n1 = args.n1;
     size_t n2 = args.n2;
@@ -1716,11 +1850,28 @@ int coal_gen_im_cutoff_graph(coal_graph_node_t **graph, coal_gen_im_cutoff_graph
 
 
     coal_graph_node_t *im_graph;
-    coal_gen_im_graph(&im_graph, im_args);
+    coal_gen_im_ss_graph(&im_graph, im_args);
     coal_graph_node_t *absorbing_vertex = get_abs_vertex(im_graph);
+
+    fprintf(stderr, "Args. n1: %zu, n2: %zu, left1: %zu, left2: %zu\n",
+            args.n1, args.n2, args.left_n1, args.left_n2);
+    fprintf(stderr, "First:\n");
+    coal_print_graph_list(stderr, im_graph, false, 4, 4);
 
     coal_graph_reset(im_graph);
     cutoff_remove_wrong_left(im_graph, absorbing_vertex, n1, n2, left1, left2);
+    fprintf(stderr, "Wrong left:\n");
+    coal_print_graph_list(stderr, im_graph, false, 4, 4);
+
+    coal_graph_node_t *removed;
+    do {
+        reset_graph_visited(im_graph);
+        removed = NULL;
+        remove_nonedge_state(&removed, im_graph, absorbing_vertex);
+    } while (removed != NULL);
+
+    fprintf(stderr, "Nowhere:\n");
+    //coal_print_graph_list(stderr, im_graph, false, 4, 4);
 
     *graph = im_graph;
 
@@ -1854,14 +2005,16 @@ int d_ph_gen_fun(double **out, size_t from, size_t to, void *args) {
 }
 
 int coal_seg_sites(d_dist_t **dist, phdist_t *phdist) {
-    phdist_t *reward;
+    DIE_PERROR(1, "Not implemented\n");
+
+    /*phdist_t *reward;
     phdist_reward_transform(&reward, phdist);
 
     (*dist) = malloc(sizeof(d_dist_t));
     (*dist)->generator_fun = d_ph_gen_fun;
     d_phgen_args_t * args = malloc(sizeof(d_phgen_args_t));
     args->reward = reward->si_mat;
-    (*dist)->args = args;
+    (*dist)->args = args;*/
 
 
 

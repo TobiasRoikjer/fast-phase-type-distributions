@@ -17,7 +17,7 @@ static void test_rand01() {
 static void test_randexp() {
     dist_sampling_set_random_seed((unsigned int)time(NULL));
     for (int i = 0; i < 400; i++) {
-        printf("%f,", dist_sample_exp(0.1));
+        printf("%Lf,", dist_sample_exp(0.1));
     }
 }
 
@@ -29,11 +29,11 @@ static void test_sampling_graph() {
     dist_sampling_set_random_seed((unsigned int)time(NULL));
 
     for (size_t i = 0; i < 10000; ++i) {
-        double *times = calloc(n, sizeof(double));
+        weight_t *times = calloc(n, sizeof(double));
         sampling_graph_iterative(&times, graph, n);
 
         for (size_t j = 0; j < n; ++j) {
-            printf("%f,", times[j]);
+            printf("%Lf,", times[j]);
         }
         printf("\n");
     }
@@ -53,7 +53,7 @@ static void test_sampling_constants_slow() {
 
     for (size_t i = 0; i < size; ++i) {
         for (size_t j = 0; j < 4; ++j) {
-            printf("%zu,%f,%f\n",j, p->constant, p->rate);
+            printf("%zu,%Lf,%Lf\n",j, p->constant, p->rate);
             p++;
         }
     }
@@ -72,7 +72,7 @@ static void test_sampling_constants_fast() {
     pdf_constant_t *p = constants;
 
     for (size_t i = 0; i < size; ++i) {
-        printf("%f,%f\n", p->constant, p->rate);
+        printf("%Lf,%Lf\n", p->constant, p->rate);
         p++;
     }
 }

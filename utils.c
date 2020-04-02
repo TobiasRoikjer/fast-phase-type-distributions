@@ -1,6 +1,7 @@
 #include "utils.h"
 #include <string.h>
 #include <stdint.h>
+#include <stdbool.h>
 
 int expanding_arr_init(expanding_arr_t **arr, size_t entry_size, size_t initial_size) {
     *arr = malloc(sizeof(expanding_arr_t));
@@ -106,28 +107,35 @@ int graph_add_edge(graph_node_t *from, graph_node_t *to, weight_t weight) {
 }
 
 int graph_redistribute_edge(graph_node_t *from, graph_node_t *to) {
-    weight_t weight = 0;
-    weight_t weight_increase = 0;
+    weight_t total_new_weight = 0;
+    weight_t total_weight = 0;
+    size_t length = vector_length(from->edges);
+    bool found = false;
 
-    for (size_t i = 0; i < vector_length(from->edges); i++) {
+    for (size_t i = 0; i < length; i++) {
         weighted_edge_t *edge = &(((weighted_edge_t*)vector_get(from->edges))[i]);
+        total_weight += edge->weight;
 
         if (edge->node == to) {
-            weight = edge->weight;
+            if (found) {
+                DIE_PERROR(1, "Edge already found\n");
+            }
+
             vector_remove_entry(from->edges, i);
+            found = true;
+        } else {
+            total_new_weight += edge->weight;
         }
     }
 
-    if (weight == 0) {
-        DIE_PERROR(1, "The weight was zero. Likely the edge was not found");
+    if (!found) {
+        DIE_PERROR(1, "The edge was not found");
     }
-
-    weight_increase = weight / vector_length(from->edges);
 
     for (size_t i = 0; i < vector_length(from->edges); i++) {
         weighted_edge_t *edge = &(((weighted_edge_t*)vector_get(from->edges))[i]);
-
-        edge->weight += weight_increase;
+        weight_t proportion = edge->weight / total_new_weight;
+        edge->weight = proportion * total_weight;
     }
 
     return 0;

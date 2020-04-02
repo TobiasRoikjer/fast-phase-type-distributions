@@ -433,12 +433,12 @@ void test_gen_im_time() {
 
 void test_gen_im_cutoff() {
     coal_graph_node_t *graph;
-    phdist_t *phdist;
+
     coal_gen_im_cutoff_graph_args_t args = {
             .n1 = 5,
-            .n2 = 0,
-            .left_n1 = 2,
-            .left_n2 = 0,
+            .n2 = 3,
+            .left_n1 = 3,
+            .left_n2 = 3,
             .allow_back_migrations = true,
             .migration_param = 0.0f,
             .pop_scale1 = 1.0f,
@@ -448,8 +448,7 @@ void test_gen_im_cutoff() {
     };
 
     coal_gen_im_cutoff_graph(&graph, args);
-    coal_print_graph_list_im(stdout, graph, true, (args.n1 + 1)*(args.n2 + 1)*2+3,
-                          (args.n1+1), args.n1, args.n2);
+    coal_print_graph_list(stdout, graph, true, 4, 4);
     weight_t **mat;
     size_t size;
     coal_graph_as_mat(&mat, &size, graph);
@@ -580,12 +579,12 @@ int main(int argc, char **argv) {
     //printf("\n..\n");
     //test_gen_im_time();
     //printf("\n..\n");
-    //test_gen_im_cutoff();
-    //printf("\n..\n");
+    test_gen_im_cutoff();
+    printf("\n..\n");
     //test_gen_im2();
     //printf("\n..\n");
-    test_gen_im_prob();
-    printf("\n..\n");
+    //test_gen_im_prob();
+    //printf("\n..\n");
     //test_gen_im_ss();
     //printf("\n..\n");
 

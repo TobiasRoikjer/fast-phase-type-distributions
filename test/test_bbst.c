@@ -62,7 +62,7 @@ static void testBBSTavl_flatten() {
     avl_flatten(&arr, &n, root);
 
     for (size_t i = 0; i <= n; i++) {
-        printf("%c %u, ", arr[i].key, arr[i].entry);
+        printf("%zu %f, ", arr[i].key, arr[i].entry);
     }
 }
 

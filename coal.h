@@ -69,6 +69,20 @@ int coal_gen_im_graph(coal_graph_node_t **graph, coal_gen_im_graph_args_t args);
 typedef struct {
     size_t n1;
     size_t n2;
+    size_t left;
+    bool allow_back_migrations;
+    coal_param_real_t migration_param;
+    coal_param_real_t pop_scale1;
+    coal_param_real_t pop_scale2;
+    coal_param_real_t mig_scale1;
+    coal_param_real_t mig_scale2;
+} coal_gen_im_pure_cutoff_graph_args_t;
+
+int coal_gen_im_pure_cutoff_graph(coal_graph_node_t **graph, coal_gen_im_pure_cutoff_graph_args_t args);
+
+typedef struct {
+    size_t n1;
+    size_t n2;
     size_t left_n1;
     size_t left_n2;
     bool allow_back_migrations;

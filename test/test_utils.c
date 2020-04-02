@@ -131,7 +131,7 @@ static void print_graph_node(graph_node_t *node) {
            ((struct data*)(&node->data))->t);
 
     for (size_t i = 0; i < vector_length(node->edges); i++) {
-        printf("Edge weight %f node data %zu %c\n", values[i].weight,
+        printf("Edge weight %Lf node data %zu %c\n", values[i].weight,
                 ((struct data*)(&values[i].node->data))->foo,
                ((struct data*)(&values[i].node->data))->t);
     }

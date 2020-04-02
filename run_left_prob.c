@@ -41,13 +41,36 @@ int main(int argc, char **argv) {
     coal_graph_as_mat(&mat, &size, graph);
 
     for (size_t i = 1; i < size; ++i) {
+        weight_t rowsum = 0;
+        weight_t taken = 0;
+
         for (size_t j = 1; j < size; ++j) {
-            fprintf(stdout, "%Lf ", mat[i][j]);
+            if (i == j) {
+                rowsum = -mat[i][j];
+            } else {
+                taken += mat[i][j];
+            }
         }
+
+        for (size_t j = 1; j < size; ++j) {
+            if (i == j) {
+                fprintf(stdout, "0 ");
+            } else {
+                fprintf(stdout, "%Lf ", mat[i][j]/rowsum);
+            }
+        }
+
+        fprintf(stdout, "%Lf", (rowsum-taken)/rowsum);
 
         fprintf(stdout, "\n");
     }
-    
+
+    for (size_t j = 0; j < size-1; ++j) {
+        fprintf(stdout, "0 ");
+    }
+
+    fprintf(stdout, "1\n");
+
     // Print correct vertex
     fprintf(stdout, "%zu\n", correct->data.vertex_index);
 
