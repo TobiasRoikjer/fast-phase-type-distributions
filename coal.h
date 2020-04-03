@@ -57,7 +57,6 @@ typedef struct {
     size_t n2;
     size_t num_iso_coal_events;
     bool allow_back_migrations;
-    coal_param_real_t migration_param;
     coal_param_real_t pop_scale1;
     coal_param_real_t pop_scale2;
     coal_param_real_t mig_scale1;
@@ -71,7 +70,6 @@ typedef struct {
     size_t n2;
     size_t left;
     bool allow_back_migrations;
-    coal_param_real_t migration_param;
     coal_param_real_t pop_scale1;
     coal_param_real_t pop_scale2;
     coal_param_real_t mig_scale1;
@@ -86,7 +84,6 @@ typedef struct {
     size_t left_n1;
     size_t left_n2;
     bool allow_back_migrations;
-    coal_param_real_t migration_param;
     coal_param_real_t pop_scale1;
     coal_param_real_t pop_scale2;
     coal_param_real_t mig_scale1;

@@ -10,14 +10,14 @@ int main(int argc, char **argv) {
     size_t n2 = (size_t)atoi(argv[2]);
     size_t left_n1 = (size_t)atoi(argv[3]);
     size_t left_n2 = (size_t)atoi(argv[4]);
-    coal_param_real_t migration_param = (coal_param_real_t)atof(argv[5]);
+    bool back_migrations = (bool)atoi(argv[5]);
     coal_param_real_t pop_scale1 = (coal_param_real_t)atof(argv[6]);
     coal_param_real_t pop_scale2 = (coal_param_real_t)atof(argv[7]);
     coal_param_real_t mig_scale1 = (coal_param_real_t)atof(argv[8]);
     coal_param_real_t mig_scale2 = (coal_param_real_t)atof(argv[9]);
 
-    fprintf(stderr, "Args:\n\tn1:%zu, n2: %zu\n\tleft1:%zu, left2: %zu,\n\tM: %Lf,\n\tnu_p1: %Lf, nu_p2: %Lf,\n\tnu_m1: %Lf, nu_m2: %Lf\n\n",
-            n1, n2, left_n1, left_n2, migration_param, pop_scale1, pop_scale2, mig_scale1, mig_scale2);
+    fprintf(stderr, "Args:\n\tn1:%zu, n2: %zu\n\tleft1:%zu, left2: %zu,\n\tM: %i,\n\tnu_p1: %Lf, nu_p2: %Lf,\n\tnu_m1: %Lf, nu_m2: %Lf\n\n",
+            n1, n2, left_n1, left_n2, back_migrations, pop_scale1, pop_scale2, mig_scale1, mig_scale2);
 
     coal_graph_node_t *graph;
     
@@ -26,8 +26,7 @@ int main(int argc, char **argv) {
             .n2 = n2,
             .left_n1 = left_n1,
             .left_n2 = left_n2,
-            .allow_back_migrations = true,
-            .migration_param = migration_param,
+            .allow_back_migrations = back_migrations,
             .pop_scale1 = pop_scale1,
             .pop_scale2 = pop_scale2,
             .mig_scale1 = mig_scale1,

@@ -1335,12 +1335,12 @@ im_visit_vertex(coal_graph_node_t **out, im_state_t *state,
             im_visit_mig_loop(out, state->mat1, state->mat2,
                               state->flag_mig1to2,
                               &(state->flag_mig2to1),
-                              args->pop_scale1 * args->mig_scale1 * args->migration_param,
+                              args->pop_scale1 * args->mig_scale1,
                               state, bst, num_coal_events, vector_length, args);
             im_visit_mig_loop(out, state->mat2, state->mat1,
                               state->flag_mig2to1,
                               &(state->flag_mig1to2),
-                              args->pop_scale2 * args->mig_scale2 * args->migration_param,
+                              args->pop_scale2 * args->mig_scale2,
                               state, bst, num_coal_events, vector_length, args);
 
             im_visit_coal_loop(out, state->mat1, args->pop_scale1, state,
@@ -1435,7 +1435,7 @@ im_ss_visit_vertex(coal_graph_node_t **out,
         if (npop1 + npop2 > 1) {
             // Mig events
             if (mig1to2 && npop1 > 0) {
-                coal_param_real_t scale = args->pop_scale1 * args->migration_param * args->mig_scale1;
+                coal_param_real_t scale = args->pop_scale1 * args->mig_scale1;
 
                 if (scale >= LDBL_EPSILON) {
                     weight_t rate = scale * npop1;
@@ -1451,7 +1451,7 @@ im_ss_visit_vertex(coal_graph_node_t **out,
             }
 
             if (mig2to1 && npop2 > 0) {
-                coal_param_real_t scale = args->pop_scale2 * args->migration_param * args->mig_scale2;
+                coal_param_real_t scale = args->pop_scale2 *  args->mig_scale2;
 
                 if (scale >= LDBL_EPSILON) {
                     weight_t rate = scale * npop2;
@@ -1799,7 +1799,6 @@ int coal_gen_im_pure_cutoff_graph(coal_graph_node_t **graph, coal_gen_im_pure_cu
             .n2 = args.n2,
             .num_iso_coal_events = n1 + n2 - 1,
             .allow_back_migrations = args.allow_back_migrations,
-            .migration_param = args.migration_param,
             .pop_scale1 = args.pop_scale1,
             .pop_scale2 = args.pop_scale2,
             .mig_scale1 = args.mig_scale1,
@@ -1841,7 +1840,6 @@ int coal_gen_im_cutoff_graph(coal_graph_node_t **graph, coal_gen_im_cutoff_graph
         .n2 = args.n2,
         .num_iso_coal_events = n1 + n2 - 1,
         .allow_back_migrations = args.allow_back_migrations,
-        .migration_param = args.migration_param,
         .pop_scale1 = args.pop_scale1,
         .pop_scale2 = args.pop_scale2,
         .mig_scale1 = args.mig_scale1,
@@ -1901,7 +1899,6 @@ int coal_gen_im_prob_vertex_graph(coal_graph_node_t **graph,
             .n2 = args.n2,
             .num_iso_coal_events = n1 + n2 - 1,
             .allow_back_migrations = args.allow_back_migrations,
-            .migration_param = args.migration_param,
             .pop_scale1 = args.pop_scale1,
             .pop_scale2 = args.pop_scale2,
             .mig_scale1 = args.mig_scale1,
