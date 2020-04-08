@@ -17,5 +17,4 @@ void phdist_print_as_matrix(phdist_t *phdist);
 void phdist_print_as_matrix_col(phdist_t *phdist);
 
 
-
 #endif //AMAZEPHASE_PHDIST_H

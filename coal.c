@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <math.h>
 #include <float.h>
+#include <gsl/gsl_matrix_long_double.h>
 #include "coal.h"
 #include "bbst.h"
 #include "utils.h"
@@ -735,6 +736,51 @@ int coal_graph_as_mat(weight_t ***weights, size_t *out_size, coal_graph_node_t *
     insert_into_weight_mat(*weights, graph);
     return 0;
 }
+
+void insert_into_gsl_weight_mat(gsl_matrix_long_double *weights, coal_graph_node_t *node) {
+    if (node->data.visited) {
+        return;
+    }
+
+    node->data.visited = true;
+
+    weighted_edge_t *values = vector_get(node->edges);
+    weight_t weight = 0;
+
+    for (size_t i = 0; i < vector_length(node->edges); i++) {
+        coal_graph_node_t *child = (coal_graph_node_t *) values[i].node;
+
+        gsl_matrix_long_double_set(weights,
+                                   (const size_t) node->data.vertex_index,
+                                   (const size_t) child->data.vertex_index,
+                                   values[i].weight);
+        weight += values[i].weight;
+    }
+
+    gsl_matrix_long_double_set(weights,
+                               (const size_t) node->data.vertex_index,
+                               (const size_t) node->data.vertex_index,
+                               -weight);
+
+    for (size_t i = 0; i < vector_length(node->edges); i++) {
+        coal_graph_node_t *child = (coal_graph_node_t *) values[i].node;
+
+        insert_into_gsl_weight_mat(weights, child);
+    }
+}
+
+
+int coal_graph_as_gsl_mat(gsl_matrix_long_double **weights, coal_graph_node_t *graph) {
+    size_t largest_index;
+    coal_label_vertex_index(&largest_index, graph);
+    reset_graph_visited(graph);
+    size_t size = largest_index+1;
+    *weights = gsl_matrix_long_double_alloc(size, size);
+
+    insert_into_gsl_weight_mat(*weights, graph);
+    return 0;
+}
+
 
 int coal_graph_as_phdist_rw(phdist_t **phdist, coal_graph_node_t *graph) {
     queue_t *queue;

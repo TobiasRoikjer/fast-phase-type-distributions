@@ -6,6 +6,7 @@
 #include "utils.h"
 #include <stdlib.h>
 #include <stdbool.h>
+#include <gsl/gsl_matrix_long_double.h>
 
 typedef size_t vec_entry_t;
 
@@ -46,6 +47,7 @@ typedef struct {
 } coal_graph_node_t;
 
 typedef long double coal_param_real_t;
+typedef long double coal_res_real_t;
 
 int coal_gen_phdist(phdist_t **phdist, size_t state_size);
 int coal_gen_erlang_phdist(phdist_t **phdist, size_t samples);
@@ -94,7 +96,10 @@ int coal_gen_im_cutoff_graph(coal_graph_node_t **graph, coal_gen_im_cutoff_graph
 int coal_gen_im_prob_vertex_graph(coal_graph_node_t **graph, coal_graph_node_t **correct_vertex, coal_gen_im_cutoff_graph_args_t args);
 int coal_gen_im_ss_graph(coal_graph_node_t **graph, coal_gen_im_graph_args_t args);
 
+int coal_dist_im_exact_coals(coal_res_real_t *probs, coal_gen_im_graph_args_t args);
+
 int coal_graph_as_mat(weight_t ***weights, size_t *out_size, coal_graph_node_t *graph);
+int coal_graph_as_gsl_mat(gsl_matrix_long_double **weights, coal_graph_node_t *graph);
 int coal_graph_as_phdist_rw(phdist_t **phdist, coal_graph_node_t *graph);
 double coal_mph_expected(coal_graph_node_t *graph, size_t reward_index);
 double coal_mph_cov(coal_graph_node_t *graph,
