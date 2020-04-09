@@ -96,10 +96,12 @@ int coal_gen_im_cutoff_graph(coal_graph_node_t **graph, coal_gen_im_cutoff_graph
 int coal_gen_im_prob_vertex_graph(coal_graph_node_t **graph, coal_graph_node_t **correct_vertex, coal_gen_im_cutoff_graph_args_t args);
 int coal_gen_im_ss_graph(coal_graph_node_t **graph, coal_gen_im_graph_args_t args);
 
-int coal_dist_im_exact_coals(coal_res_real_t *probs, coal_gen_im_graph_args_t args);
+int coal_im_get_number_coals_prob(long double *out,
+                                  const size_t coals, const double isolation_time,
+                                  const coal_gen_im_graph_args_t *args);
 
 int coal_graph_as_mat(weight_t ***weights, size_t *out_size, coal_graph_node_t *graph);
-int coal_graph_as_gsl_mat(gsl_matrix_long_double **weights, coal_graph_node_t *graph);
+int coal_graph_as_gsl_mat(gsl_matrix_long_double **weights, coal_graph_node_t *graph, bool include_absorbing);
 int coal_graph_as_phdist_rw(phdist_t **phdist, coal_graph_node_t *graph);
 double coal_mph_expected(coal_graph_node_t *graph, size_t reward_index);
 double coal_mph_cov(coal_graph_node_t *graph,

@@ -527,250 +527,22 @@ void test_gen_im_prob() {
     }
 }
 
-void convert_mat(gsl_matrix *out, const gsl_matrix_long_double *M) {
-    for (size_t i = 0; i < M->size1; ++i) {
-        for (size_t j = 0; j < M->size2; ++j) {
-            gsl_matrix_set(out, i, j, (double) gsl_matrix_long_double_get(M, i, j));
-        }
-    }
-}
-
-void convert_mat_o(gsl_matrix_long_double *out, const gsl_matrix *M) {
-    for (size_t i = 0; i < M->size1; ++i) {
-        for (size_t j = 0; j < M->size2; ++j) {
-            gsl_matrix_long_double_set(out, i, j, gsl_matrix_get(M, i, j));
-        }
-    }
-}
-
-void mat_mul(gsl_matrix_long_double *C, const gsl_matrix_long_double *A, const gsl_matrix_long_double *B) {
-    gsl_matrix *Ad = gsl_matrix_alloc(A->size1, A->size2);
-    gsl_matrix *Bd = gsl_matrix_alloc(B->size1, B->size2);
-    gsl_matrix *Cd = gsl_matrix_alloc(A->size1, B->size2);
-
-    convert_mat(Ad, A);
-    convert_mat(Bd, B);
-
-    gsl_blas_dgemm(CblasNoTrans, CblasNoTrans,
-            1.0, Ad, Bd, 0.0, Cd);
-
-    convert_mat_o(C, Cd);
-}
-
-long double int2(double to,
-        gsl_matrix_long_double *A,
-        gsl_matrix_long_double *B,
-        gsl_matrix_long_double *C1,
-        gsl_matrix_long_double *C2) {
-    gsl_matrix_long_double *sum;
-    gsl_matrix_long_double *At;
-    gsl_matrix_long_double *L;
-    gsl_matrix_long_double *AtmL;
-    gsl_matrix_long_double *LmAt;
-    gsl_matrix_long_double *tmpC1;
-    gsl_matrix_long_double *tmpC2;
-
-    sum = gsl_matrix_long_double_alloc(B->size1, B->size2);
-
-    At = gsl_matrix_long_double_alloc(A->size1, A->size2);
-    gsl_matrix_long_double_memcpy(At, A);
-    gsl_matrix_long_double_scale(At, to);
-
-    L = gsl_matrix_long_double_alloc(B->size1, B->size2);
-    gsl_matrix_long_double_memcpy(L, B);
-
-    AtmL = gsl_matrix_long_double_alloc(At->size1, L->size2);
-    LmAt = gsl_matrix_long_double_alloc(L->size1, At->size2);
-
-    tmpC1 = gsl_matrix_long_double_alloc(C1->size1, sum->size2);
-    tmpC2 = gsl_matrix_long_double_alloc(C1->size1, C2->size2);
-
-    for (size_t k = 1; k < 200; ++k) {
-        mat_mul(AtmL, At, L);
-        mat_mul(LmAt, L, At);
-
-        gsl_matrix_long_double_memcpy(L, AtmL);
-        gsl_matrix_long_double_sub(L, LmAt);
-        gsl_matrix_long_double_scale(L, 1.0/((double)k+1));
-
-        gsl_matrix_long_double_add(sum, L);
-    }
-
-    mat_mul(tmpC1, C1, sum);
-    mat_mul(tmpC2, tmpC1, C2);
-    gsl_matrix_long_double_scale(tmpC2, to);
-
-    return gsl_matrix_long_double_get(tmpC2, 0, 0);
-}
-
-
-void get_first(gsl_matrix_long_double **out, size_t coals) {
-    size_t inpop1 = 3;
-    size_t inpop2 = 3;
-
-    coal_gen_im_pure_cutoff_graph_args_t args = {
-            .n1 = inpop1,
-            .n2 = inpop2,
-            .left = inpop1 + inpop2 - coals,
+void test_num_coals() {
+    coal_gen_im_graph_args_t args = {
+            .n1 = 3,
+            .n2 = 3,
             .allow_back_migrations = true,
-            .pop_scale1 = 0.3,
-            .pop_scale2 = 0.7,
-            .mig_scale1 = 0.01,
-            .mig_scale2 = 0.01
+            .pop_scale1 = 0.3f,
+            .pop_scale2 = 0.7f,
+            .mig_scale1 = 0.01f,
+            .mig_scale2 = 0.01f,
     };
 
-    coal_graph_node_t *graph;
-
-    coal_gen_im_pure_cutoff_graph(&graph, args);
-
-    coal_graph_as_gsl_mat(out, graph);
-}
-
-
-void test_matrix() {
-    gsl_matrix *mat = gsl_matrix_alloc(4, 4);
-    gsl_matrix_set(mat, 0, 0, 8);
-    gsl_matrix_set(mat, 1, 0, 5);
-    gsl_matrix_set(mat, 1, 1, 3);
-    gsl_matrix_set(mat, 2, 2, 6);
-    gsl_matrix_set(mat, 3, 3, 7);
-    gsl_matrix *exp = gsl_matrix_alloc(4, 4);
-    gsl_linalg_exponential_ss(mat, exp, GSL_PREC_DOUBLE);
-
-
-    long double a[] = { 0.11, 0.12,
-                   0.21, 0.22};
-
-    long double b[] = { 1011, 1012,
-                   1021, 1022};
-
-    long double c[] = { 0.00, 0.00,
-                   0.00, 0.00 };
-
-    long double d[] = { 0.50, 1.00 };
-
-    long double e[] = { 4.00,
-                        2.00 };
-
-    gsl_matrix_long_double_view A = gsl_matrix_long_double_view_array(a, 2, 2);
-    gsl_matrix_long_double_view B = gsl_matrix_long_double_view_array(b, 2, 2);
-    gsl_matrix_long_double_view C = gsl_matrix_long_double_view_array(c, 2, 2);
-    gsl_matrix_long_double_view C1 = gsl_matrix_long_double_view_array(d, 1, 2);
-    gsl_matrix_long_double_view C2 = gsl_matrix_long_double_view_array(e, 2, 1);
-
-    //mat_mul(&C.matrix, &A.matrix, &B.matrix);
-    long double res = int2(0.5, &A.matrix, &B.matrix, &C1.matrix, &C2.matrix);
-    fprintf(stdout, "Res %Lf\n", res);
-
-    size_t inpop1 = 3;
-    size_t inpop2 = 3;
-    size_t coals = 1;
-
-    gsl_matrix_long_double *first;
-    get_first(&first, coals);
-    for (size_t i = 0; i < first->size1; i++) {
-        for (size_t j = 0; j < first->size2; j++) {
-            fprintf(stdout, "%Lf ", gsl_matrix_long_double_get(first, i, j));
-        }
-
-        fprintf(stdout, "\n");
+    for (size_t coals = 0; coals < 6; ++coals) {
+        long double prob;
+        coal_im_get_number_coals_prob(&prob, coals, 1.0f, &args);
+        fprintf(stdout, "%zu coals: %Lf\n", coals, prob);
     }
-
-    for (size_t h1 = 0; h1 <= inpop1+inpop2-coals; ++h1) {
-        h1 = inpop1 + inpop2 - coals - h1;
-
-    }
-
-
-    /*
-    sum <- 0
-    for (N1 in 0:(inpop1+inpop2-coals)) {
-        N2 = inpop1+inpop2-coals-N1
-        prob <- getmatprob(paste0("data/left", inpop1, inpop2, "-",allow_mig,"-",N1,N2,".tsv"))
-        if (prob < 0.0001) {
-            next()
-        }
-        other <- readfiletime(paste0("data/next",N1,N2,"-", allow_mig, ".tsv"))
-        Sc <- combinematrices(M, other)
-        sc <- s(Sc)
-
-        alpha1 <- integer(length=nrow(Sc))
-        alpha1[1] <- 1
-        alpha2 <- integer(length=nrow(Sc))
-        alpha2[nrow(M)+1] <- 1
-        e <- t(t(rep(1, nrow(Sc))))
-
-#P <- diagonalize(Sc)$P
-#D <- diagonalize(Sc)$D
-#Pi <- diagonalize(Sc)$Pi
-
-#sum <- sum + prob * int2(time, -D, Pi%*%e%*%alpha1%*%P, alpha2 %*% expm(time*Sc)%*%P, Pi%*%sc)
-        sum <- sum + prob * int2(time, -Sc, e%*%alpha1, alpha2 %*% expm(time*Sc), sc)
-
-    }
-    return(sum)
-
-    /*for (size_t i = 0; i < 2; i++) {
-        for (size_t j = 0; j < 2; j++) {
-            fprintf(stdout, "%Lf ", gsl_matrix_long_double_get(&C.matrix, i, j));
-        }
-
-        fprintf(stdout, "\n");
-    }*/
-
-
-    /*
-    probofcoals <- function(time, coals, allow_mig) {
-        if (coals == 0) {
-            M <- readfiletime(paste0("data/first",inpop1, inpop2,"-",allow_mig, "-",inpop1+inpop2-1,".tsv"))
-            m <- s(M)
-
-            alpha <- integer(length=nrow(M))
-            alpha[1] <- 1
-            e <- t(t(rep(1, nrow(M))))
-            return(alpha%*%expm(M*time)%*%e)
-        }
-
-        if (coals == inpop1+inpop2-1) {
-            M <- readfiletime(paste0("data/first",inpop1, inpop2,"-",allow_mig, "-",1,".tsv"))
-            m <- s(M)
-
-            alpha <- integer(length=nrow(M))
-            alpha[1] <- 1
-            e <- t(t(rep(1, nrow(M))))
-            return(1-alpha%*%expm(M*time)%*%e)
-        }
-
-        M <- readfiletime(paste0("data/first",inpop1, inpop2,"-",allow_mig, "-",inpop1+inpop2-coals,".tsv"))
-        sum <- 0
-        for (N1 in 0:(inpop1+inpop2-coals)) {
-            N2 = inpop1+inpop2-coals-N1
-            prob <- getmatprob(paste0("data/left", inpop1, inpop2, "-",allow_mig,"-",N1,N2,".tsv"))
-            if (prob < 0.0001) {
-                next()
-            }
-            other <- readfiletime(paste0("data/next",N1,N2,"-", allow_mig, ".tsv"))
-            Sc <- combinematrices(M, other)
-            sc <- s(Sc)
-
-            alpha1 <- integer(length=nrow(Sc))
-            alpha1[1] <- 1
-            alpha2 <- integer(length=nrow(Sc))
-            alpha2[nrow(M)+1] <- 1
-            e <- t(t(rep(1, nrow(Sc))))
-
-#P <- diagonalize(Sc)$P
-#D <- diagonalize(Sc)$D
-#Pi <- diagonalize(Sc)$Pi
-
-#sum <- sum + prob * int2(time, -D, Pi%*%e%*%alpha1%*%P, alpha2 %*% expm(time*Sc)%*%P, Pi%*%sc)
-            sum <- sum + prob * int2(time, -Sc, e%*%alpha1, alpha2 %*% expm(time*Sc), sc)
-
-        }
-        return(sum)
-    }
-
-     */
 }
 
 int main(int argc, char **argv) {
@@ -828,7 +600,7 @@ int main(int argc, char **argv) {
     //printf("\n..\n");
     //test_gen_im_ss();
     //printf("\n..\n");
-    test_matrix();
+    test_num_coals();
 
     return 0;
 }
