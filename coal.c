@@ -2355,44 +2355,46 @@ static void _print_graph_list_im(FILE *stream, coal_graph_node_t *node,
 
     weighted_edge_t *values = vector_get(node->edges);
 
-    for (size_t i = 0; i < vector_length(node->edges); i++) {
-        coal_graph_node_t * child = (coal_graph_node_t*)values[i].node;
-        char *type;
-        size_t ppop1, ppop2, cpop1, cpop2;
+    if (node->data.state != NULL) {
+        for (size_t i = 0; i < vector_length(node->edges); i++) {
+            coal_graph_node_t *child = (coal_graph_node_t *) values[i].node;
+            char *type;
+            size_t ppop1, ppop2, cpop1, cpop2;
 
-        ppop1 = count_lineages_mat(((im_state_t *)node->data.state)->mat1, n1, n2);
-        ppop2 = count_lineages_mat(((im_state_t *)node->data.state)->mat2, n1, n2);
-        cpop1 = count_lineages_mat(((im_state_t *)child->data.state)->mat1, n1, n2);
-        cpop2 = count_lineages_mat(((im_state_t *)child->data.state)->mat2, n1, n2);
+            ppop1 = count_lineages_mat(((im_state_t *) node->data.state)->mat1, n1, n2);
+            ppop2 = count_lineages_mat(((im_state_t *) node->data.state)->mat2, n1, n2);
+            cpop1 = count_lineages_mat(((im_state_t *) child->data.state)->mat1, n1, n2);
+            cpop2 = count_lineages_mat(((im_state_t *) child->data.state)->mat2, n1, n2);
 
-        if (cpop1 < ppop1) {
-            if (cpop2 > ppop2) {
-                type = "M12";
+            if (cpop1 < ppop1) {
+                if (cpop2 > ppop2) {
+                    type = "M12";
+                } else {
+                    type = "C1";
+                }
+            } else if (cpop2 < ppop2) {
+                if (cpop1 > ppop1) {
+                    type = "M21";
+                } else {
+                    type = "C2";
+                }
             } else {
-                type = "C1";
+                type = "NONE";
             }
-        } else if (cpop2 < ppop2) {
-            if (cpop1 > ppop1) {
-                type = "M21";
-            } else {
-                type = "C2";
+
+            fprintf(stream, "\t");
+            fprintf(stream, "(%s) (%Lf) ", type, values[i].weight);
+            print_vector_spacing(stream, child->data.state_vec,
+                                 vec_length, vec_spacing);
+            if (indexed) {
+                fprintf(stream, " (%zu)", child->data.vertex_index);
             }
-        } else {
-            type = "NONE";
-        }
 
-        fprintf(stream, "\t");
-        fprintf(stream, "(%s) (%Lf) ", type, values[i].weight);
-        print_vector_spacing(stream,child->data.state_vec,
-                             vec_length, vec_spacing);
-        if (indexed) {
-            fprintf(stream, " (%zu)", child->data.vertex_index);
+            if (vector_length(child->edges) == 0) {
+                fprintf(stream, " (abs)");
+            }
+            fprintf(stream, "\n");
         }
-
-        if (vector_length(child->edges) == 0) {
-            fprintf(stream, " (abs)");
-        }
-        fprintf(stream, "\n");
     }
 
     fprintf(stream, "\n");
@@ -2913,6 +2915,8 @@ int _coal_reward_transform(coal_graph_node_t *node) {
 int coal_reward_transform(coal_graph_node_t *graph, coal_graph_node_t **start) {
     coal_graph_node_create(start, NULL, NULL);
     (*start)->data.reward = 1;
+    (*start)->data.reset_int = graph->data.reset_int;
+
     graph_add_edge((graph_node_t*) *start, (graph_node_t*) graph, 1);
     size_t largest;
     coal_label_vertex_index(&largest, *start);

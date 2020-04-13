@@ -347,6 +347,8 @@ int sampling_graph_pfd_constants_rec(pdf_constant_t **out, size_t *out_size,
 
     return 0;
 }
+
+
 static size_t count_lineages_mat(vec_entry_t **mat,
         size_t n1, size_t n2) {
     size_t sum = 0;
