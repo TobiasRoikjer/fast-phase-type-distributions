@@ -106,6 +106,81 @@ int graph_add_edge(graph_node_t *from, graph_node_t *to, weight_t weight) {
     return 0;
 }
 
+/*
+ * Adds the edge if it does not exists. Otherwise increments the weight
+ */
+int graph_combine_edge(graph_node_t *from, graph_node_t *to, weight_t weight) {
+    weighted_edge_t *values = vector_get(from->edges);
+
+    for (size_t i = 0; i < vector_length(from->edges); ++i) {
+        if (values[i].node == to) {
+            values[i].weight += weight;
+            return 0;
+        }
+    }
+
+    *((weighted_edge_t*)(vector_add(from->edges))) =
+            (weighted_edge_t) {.node = to, .weight = weight};
+    *((weighted_edge_t*)(vector_add(to->reverse_edges))) =
+            (weighted_edge_t) {.node = from, .weight = 0};
+
+    return 0;
+}
+
+
+
+int graph_remove_edge_forwards(graph_node_t *from, graph_node_t *to) {
+    size_t length = vector_length(from->edges);
+    bool found = false;
+
+    for (ssize_t i = length; i >= 0; i--) {
+        weighted_edge_t *edge = &(((weighted_edge_t*)vector_get(from->edges))[i]);
+
+        if (edge->node == to) {
+            if (found) {
+                DIE_PERROR(1, "Edge already found\n");
+            }
+
+            vector_remove_entry(from->edges, (size_t) i);
+            found = true;
+        }
+    }
+
+    if (!found) {
+        DIE_PERROR(1, "The edge was not found");
+    }
+
+    return 0;
+}
+int graph_remove_edge_backwards(graph_node_t *from, graph_node_t *to) {
+    size_t length = vector_length(to->reverse_edges);
+    bool found = false;
+
+    for (ssize_t i = length; i >= 0; i--) {
+        weighted_edge_t *edge = &(((weighted_edge_t*)vector_get(to->reverse_edges))[i]);
+
+        if (edge->node == from) {
+            if (found) {
+                DIE_PERROR(1, "Edge already found\n");
+            }
+
+            vector_remove_entry(to->reverse_edges, i);
+            found = true;
+        }
+    }
+
+    if (!found) {
+        DIE_PERROR(1, "The edge was not found");
+    }
+
+    return 0;
+}
+int graph_remove_edge(graph_node_t *from, graph_node_t *to) {
+   graph_remove_edge_forwards(from, to);
+   graph_remove_edge_backwards(from, to);
+   return 0;
+}
+
 int graph_redistribute_edge(graph_node_t *from, graph_node_t *to) {
     weight_t total_new_weight = 0;
     weight_t total_weight = 0;

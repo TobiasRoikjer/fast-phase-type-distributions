@@ -22,6 +22,29 @@ int main(int argc, char **argv) {
                 (size_t) atoi(argv[2]), (size_t) atoi(argv[3]), (long) (time(NULL)-start));
 
         return 0;
+    } else if (strcmp(argv[1], "prob_coals") == 0) {
+        size_t n = (size_t) atoi(argv[2]);
+
+        time_t start;
+        start = time(NULL);
+
+        coal_gen_im_graph_args_t args = {
+                .n1 = n,
+                .n2 = n,
+                .allow_back_migrations = true,
+                .pop_scale1 = 0.3f,
+                .pop_scale2 = 0.7f,
+                .mig_scale1 = 0.01f,
+                .mig_scale2 = 0.01f,
+        };
+
+        long double* probs;
+        coal_im_get_number_coals_probs(&probs, 1.0f, &args);
+
+        fprintf(stdout, "Time elapsed for %zu+%zu samples: %lu\n",
+                n, n, (long) (time(NULL)-start));
+
+        return 0;
     }
 
     return 0;

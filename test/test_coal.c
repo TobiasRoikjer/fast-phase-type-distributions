@@ -526,7 +526,8 @@ void test_gen_im_prob() {
         fprintf(stdout, "Correct %zu\n", correct_vertex->data.vertex_index);
     }
 }
-
+//TODO: The mat_prob function should only be called once
+// for all iters of N1
 void test_num_coals() {
     coal_gen_im_graph_args_t args = {
             .n1 = 3,
@@ -534,16 +535,63 @@ void test_num_coals() {
             .allow_back_migrations = true,
             .pop_scale1 = 0.3f,
             .pop_scale2 = 0.7f,
-            .mig_scale1 = 0.01f,
-            .mig_scale2 = 0.01f,
+            .mig_scale1 = 1.0f,
+            .mig_scale2 = 1.0f,
     };
 
-    for (size_t coals = 0; coals < 6; ++coals) {
-        long double prob;
-        coal_im_get_number_coals_prob(&prob, coals, 1.0f, &args);
-        fprintf(stdout, "%zu coals: %Lf\n", coals, prob);
+    long double* probs;
+    coal_im_get_number_coals_probs(&probs, 1.5f, &args);
+
+    for (size_t coals = 0; coals < args.n1+args.n2; ++coals) {
+        fprintf(stdout, "%zu coals: %Lf\n", coals, probs[coals]);
     }
 }
+
+double reward_by(coal_graph_node_t *node) {
+    //return node->data.state_vec[1] + node->data.state_vec[2];
+    if (node->data.state_vec[1] == 2) {
+        return 10;
+    } else if (node->data.state_vec[2] == 1) {
+        return 1;
+    }
+
+    return 0;
+}
+
+void test_reward_transform() {
+    coal_graph_node_t *graph;
+    coal_gen_kingman_graph(&graph, 4);
+
+    weight_t **mat;
+    size_t size;
+    coal_graph_as_mat(&mat, &size, graph);
+
+    for (size_t i = 0; i < size; ++i) {
+        for (size_t j = 0; j < size; ++j) {
+            //fprintf(stdout, "%Lf ", mat[i][j]);
+        }
+
+        //fprintf(stdout, "\n");
+    }
+
+    // Doubletons
+    coal_rewards_set(graph, reward_by);
+    coal_graph_node_t *start;
+    coal_reward_transform(graph, &start);
+    graph = start;
+
+    coal_graph_as_mat(&mat, &size, graph);
+
+    fprintf(stdout, "\n");
+    for (size_t i = 0; i < size; ++i) {
+        for (size_t j = 0; j < size; ++j) {
+            fprintf(stdout, "%Lf ", mat[i][j]);
+        }
+
+        fprintf(stdout, "\n");
+    }
+}
+
 
 int main(int argc, char **argv) {
     //test_gen();
@@ -600,7 +648,9 @@ int main(int argc, char **argv) {
     //printf("\n..\n");
     //test_gen_im_ss();
     //printf("\n..\n");
-    test_num_coals();
-
+    //test_num_coals();
+    //printf("\n..\n");
+    test_reward_transform();
+    //printf("\n..\n");
     return 0;
 }

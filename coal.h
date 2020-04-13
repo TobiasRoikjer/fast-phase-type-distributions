@@ -38,10 +38,12 @@ typedef struct {
     ssize_t vertex_index;
     size_t reset_int;
     void *pointer;
+    double reward;
 } coal_graph_node_data_t;
 
 typedef struct {
     vector_t *edges;
+    // TODO: This should not be a weighted_edge_t
     vector_t *reverse_edges;
     coal_graph_node_data_t data;
 } coal_graph_node_t;
@@ -99,7 +101,9 @@ int coal_gen_im_ss_graph(coal_graph_node_t **graph, coal_gen_im_graph_args_t arg
 int coal_im_get_number_coals_prob(long double *out,
                                   const size_t coals, const double isolation_time,
                                   const coal_gen_im_graph_args_t *args);
-
+int coal_im_get_number_coals_probs(long double **out,
+                                   const double isolation_time,
+                                   const coal_gen_im_graph_args_t *args);
 int coal_graph_as_mat(weight_t ***weights, size_t *out_size, coal_graph_node_t *graph);
 int coal_graph_as_gsl_mat(gsl_matrix_long_double **weights, coal_graph_node_t *graph, bool include_absorbing);
 int coal_graph_as_phdist_rw(phdist_t **phdist, coal_graph_node_t *graph);
@@ -118,6 +122,9 @@ void coal_print_graph_list_im(FILE *stream, coal_graph_node_t *graph,
                               size_t vec_length, size_t vec_spacing,
                               size_t n1, size_t n2);
 //print_graph_node(start, im_state_length(n1,n2),0);
+
+int coal_rewards_set(coal_graph_node_t *graph, double(*reward_function)(coal_graph_node_t *node));
+int coal_reward_transform(coal_graph_node_t *graph, coal_graph_node_t **start);
 
 typedef struct d_phgen_args {
     mat_t *reward;

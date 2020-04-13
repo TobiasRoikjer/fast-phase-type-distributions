@@ -61,6 +61,8 @@ typedef struct {
 int graph_node_create(graph_node_t **node, size_t data_size);
 int graph_node_destroy(graph_node_t *);
 int graph_add_edge(graph_node_t *from, graph_node_t *to, weight_t weight);
+int graph_remove_edge(graph_node_t *from, graph_node_t *to);
+int graph_combine_edge(graph_node_t *from, graph_node_t *to, weight_t weight);
 int graph_redistribute_edge(graph_node_t *from, graph_node_t *to);
 
 typedef struct {

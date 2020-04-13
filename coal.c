@@ -301,7 +301,13 @@ static void print_vector(FILE *stream,vec_entry_t *v, size_t nmemb) {
 }
 
 static void print_vector_spacing(FILE *stream,vec_entry_t *v, size_t nmemb, size_t spacing) {
+    if (v == NULL) {
+        fprintf(stream, "(NULL)");
+        return;
+    }
+
     fprintf(stream, "(");
+
     for (size_t i = 0; i < nmemb; i++) {
         if (i % spacing == 0) {
             fprintf(stream, "-");
@@ -2465,20 +2471,13 @@ void mat_combine(gsl_matrix_long_double *C, const gsl_matrix_long_double *A, con
     }
 }
 
+#define ADJ_SUM_ITERS 50
 
 long double adj_sum(double to,
                     gsl_matrix_long_double *A,
                     gsl_matrix_long_double *B,
                     gsl_matrix_long_double *C1,
                     gsl_matrix_long_double *C2) {
-    /*fprintf(stdout, "Adj asum args\n");
-    print_mat(A);
-    fprintf(stdout, "Adj asum args\n");
-    print_mat(B);
-    fprintf(stdout, "Adj asum args\n");
-    print_mat(C1);
-    fprintf(stdout, "Adj asum args\n");
-    print_mat(C2);*/
     gsl_matrix_long_double *sum;
     gsl_matrix_long_double *At;
     gsl_matrix_long_double *L;
@@ -2503,7 +2502,7 @@ long double adj_sum(double to,
     tmpC1 = gsl_matrix_long_double_alloc(C1->size1, sum->size2);
     tmpC2 = gsl_matrix_long_double_alloc(C1->size1, C2->size2);
 
-    for (size_t k = 1; k < 250; ++k) {
+    for (size_t k = 1; k <= ADJ_SUM_ITERS; ++k) {
         mat_mul(AtmL, At, L);
         mat_mul(LmAt, L, At);
 
@@ -2641,7 +2640,8 @@ int get_mat_prob(long double *prob, const size_t i, const size_t j, const gsl_ma
     long double sum = 0;
 
     for (size_t k = 0; k < 100; ++k) {
-        sum += gsl_matrix_long_double_get(Mcpy, i, j);
+        long double inc = gsl_matrix_long_double_get(Mcpy, i, j);
+        sum += inc;
         mat_mul(Mcpy, M, Mcpy);
     }
 
@@ -2652,12 +2652,10 @@ int get_mat_prob(long double *prob, const size_t i, const size_t j, const gsl_ma
 int coal_im_get_number_coals_prob(long double *out,
         const size_t coals, const double isolation_time,
         const coal_gen_im_graph_args_t *args) {
-    double time = isolation_time;
-
-    gsl_matrix_long_double *first;
-    get_first(&first, coals, args);
+        gsl_matrix_long_double *first;
 
     if (coals == 0) {
+        get_first(&first, 1, args);
         gsl_matrix_long_double *alpha = gsl_matrix_long_double_alloc(1, first->size1);
         gsl_matrix_long_double_set_zero(alpha);
         gsl_matrix_long_double_set(alpha, 0, 0, 1.0f);
@@ -2666,6 +2664,7 @@ int coal_im_get_number_coals_prob(long double *out,
 
         gsl_matrix *timeFirstD = gsl_matrix_alloc(first->size1, first->size2);
         convert_mat(timeFirstD, first);
+        gsl_matrix_scale(timeFirstD, isolation_time);
 
         gsl_matrix *expmD = gsl_matrix_alloc(first->size1, first->size2);
         gsl_linalg_exponential_ss(timeFirstD, expmD, GSL_PREC_DOUBLE);
@@ -2682,6 +2681,7 @@ int coal_im_get_number_coals_prob(long double *out,
     }
 
     if (coals == args->n1 + args->n2 - 1) {
+        get_first(&first, coals, args);
         gsl_matrix_long_double *alpha = gsl_matrix_long_double_alloc(1, first->size1);
         gsl_matrix_long_double_set_zero(alpha);
         gsl_matrix_long_double_set(alpha, 0, 0, 1.0f);
@@ -2690,6 +2690,7 @@ int coal_im_get_number_coals_prob(long double *out,
 
         gsl_matrix *timeFirstD = gsl_matrix_alloc(first->size1, first->size2);
         convert_mat(timeFirstD, first);
+        gsl_matrix_scale(timeFirstD, isolation_time);
 
         gsl_matrix *expmD = gsl_matrix_alloc(first->size1, first->size2);
         gsl_linalg_exponential_ss(timeFirstD, expmD, GSL_PREC_DOUBLE);
@@ -2706,6 +2707,7 @@ int coal_im_get_number_coals_prob(long double *out,
         return 0;
     }
 
+    get_first(&first, coals, args);
     long double sum = 0;
 
     for (size_t h1 = 0; h1 <= args->n1 + args->n2 - coals; ++h1) {
@@ -2717,6 +2719,10 @@ int coal_im_get_number_coals_prob(long double *out,
 
         long double prob;
         get_mat_prob(&prob, 0, correct_index - 1, m);
+
+        if (prob < 0.00001) {
+            continue;
+        }
 
         gsl_matrix_long_double *other;
         get_next(&other, h1, h2, args);
@@ -2747,7 +2753,7 @@ int coal_im_get_number_coals_prob(long double *out,
 
         gsl_matrix_long_double *timeSc = gsl_matrix_long_double_alloc(Sc->size1, Sc->size2);
         gsl_matrix_long_double_memcpy(timeSc, Sc);
-        gsl_matrix_long_double_scale(timeSc, time);
+        gsl_matrix_long_double_scale(timeSc, isolation_time);
 
         gsl_matrix *timeScD = gsl_matrix_alloc(Sc->size1, Sc->size2);
         convert_mat(timeScD, timeSc);
@@ -2761,11 +2767,172 @@ int coal_im_get_number_coals_prob(long double *out,
         gsl_matrix_long_double *C1 = gsl_matrix_long_double_alloc(alpha2->size1, expm->size2);
         mat_mul(C1, alpha2, expm);
 
-        long double adj = adj_sum(time, A, B, C1, sc);
+        long double adj = adj_sum(isolation_time, A, B, C1, sc);
         sum += adj * prob;
     }
 
     *out = sum;
+
+    return 0;
+}
+
+int coal_im_get_number_coals_probs(long double **out,
+        const double isolation_time,
+        const coal_gen_im_graph_args_t *args) {
+    size_t limit = args->n1 + args->n2 - 1;
+    *out = calloc(limit, sizeof(double));
+    for (size_t coals = 0; coals <= limit; ++coals) {
+        coal_im_get_number_coals_prob(&((*out)[coals]), coals, isolation_time, args);
+    }
+
+
+    // We have a bug somewhere, TODO: Fix this
+    (*out)[1] = 0;
+    long double sum = 0;
+
+    for (size_t coals = 0; coals <= limit; ++coals) {
+        if (isnan(((*out)[coals]))) {
+            ((*out)[coals]) = 0;
+        }
+
+        sum += ((*out)[coals]);
+    }
+
+    (*out)[1] = 1-sum;
+
+    return 0;
+}
+
+int _coal_rewards_set(coal_graph_node_t *node, double(*reward_function)(coal_graph_node_t *node)) {
+    if (node->data.visited) {
+        return 0;
+    }
+
+    node->data.visited = true;
+
+    node->data.reward = reward_function(node);
+
+    weighted_edge_t *values = vector_get(node->edges);
+
+    for (size_t i = 0; i < vector_length(node->edges); ++i) {
+        _coal_rewards_set((coal_graph_node_t *) values[i].node, reward_function);
+    }
+
+    return 0;
+}
+
+int coal_rewards_set(coal_graph_node_t *graph, double(*reward_function)(coal_graph_node_t *node)) {
+    reset_graph_visited(graph);
+    _coal_rewards_set(graph, reward_function);
+    return 0;
+}
+
+coal_graph_node_t *debug_graph;
+
+int _coal_reward_transform(coal_graph_node_t *node) {
+    if (node->data.visited) {
+        return 0;
+    }
+
+    if (node->data.vertex_index == 0) {
+        // It is the absorbing vertex
+        return 0;
+    }
+
+    node->data.visited = true;
+    weighted_edge_t *values = vector_get(node->edges);
+
+    for (size_t i = 0; i < vector_length(node->edges); ++i) {
+        _coal_reward_transform((coal_graph_node_t*) values[i].node);
+    }
+
+    if (node->data.reward == 0) {
+        weighted_edge_t *parents = vector_get(node->reverse_edges);
+
+        for (ssize_t j = vector_length(node->reverse_edges)-1; j >= 0; --j) {
+            coal_graph_node_t *my_parent = (coal_graph_node_t *) parents[j].node;
+            weight_t total_weight = 0;
+
+            for (size_t i = 0; i < vector_length(node->edges); ++i) {
+                total_weight += values[i].weight;
+            }
+
+            // Take all my edges and add to my parent instead.
+
+            for (ssize_t i = vector_length(node->edges)-1; i >= 0; --i) {
+                weighted_edge_t my_child_edge = values[i];
+                weight_t prob = my_child_edge.weight / total_weight;
+
+                weighted_edge_t *edge_to_me = NULL;
+                weighted_edge_t *parent_edges = vector_get(my_parent->edges);
+
+                for (size_t k = 0; k < vector_length(my_parent->edges); ++k) {
+                    if ((coal_graph_node_t *) parent_edges[k].node == node) {
+                        edge_to_me = &(parent_edges[k]);
+                        break;
+                    }
+                }
+
+                if (edge_to_me == NULL) {
+                    DIE_PERROR(1, "No edge found from parent to me. This should not happen");
+                }
+
+                fprintf(stderr, "\"Adding\" edge from %zd to %zd. I am node %zd\n", my_parent->data.vertex_index,
+                        ((coal_graph_node_t*)my_child_edge.node)->data.vertex_index, node->data.vertex_index);
+                graph_combine_edge((graph_node_t *) my_parent,
+                        my_child_edge.node,
+                        edge_to_me->weight * prob);
+
+                // Remove us from the child's edges
+                fprintf(stderr, "Child: Removing edge from %zd to %zd\n", node->data.vertex_index,
+                        ((coal_graph_node_t*)my_child_edge.node)->data.vertex_index);
+                graph_remove_edge((graph_node_t *) node, my_child_edge.node);
+                values = vector_get(node->edges);
+            }
+
+            // Remove us from the parent's edges
+            fprintf(stderr, "Parent: Removing edge from %zd to %zd\n", my_parent->data.vertex_index,
+                    node->data.vertex_index);
+            graph_remove_edge((graph_node_t *) my_parent, (graph_node_t *) node);
+            parents = vector_get(node->reverse_edges);
+        }
+    } else {
+        for (size_t i = 0; i < vector_length(node->edges); ++i) {
+            values[i].weight /= node->data.reward;
+        }
+    }
+
+    return 0;
+}
+
+/*
+ * Note: adds a new starting vertex.
+ * This holds the initial probability vector values.
+ * A pass must have been made that sets the node.reward values
+ */
+int coal_reward_transform(coal_graph_node_t *graph, coal_graph_node_t **start) {
+    coal_graph_node_create(start, NULL, NULL);
+    (*start)->data.reward = 1;
+    graph_add_edge((graph_node_t*) *start, (graph_node_t*) graph, 1);
+    size_t largest;
+    coal_label_vertex_index(&largest, *start);
+    reset_graph_visited(*start);
+
+    weight_t **mat;
+    size_t size;
+    coal_graph_as_mat(&mat, &size, *start);
+
+    for (size_t i = 0; i < size; ++i) {
+        for (size_t j = 0; j < size; ++j) {
+            fprintf(stdout, "%Lf ", mat[i][j]);
+        }
+
+        fprintf(stdout, "\n");
+    }
+
+    reset_graph_visited(*start);
+    debug_graph = *start;
+    _coal_reward_transform(graph);
 
     return 0;
 }
