@@ -7,10 +7,7 @@ double reward(coal_graph_node_t* node) {
     double reward = (double)((((im_state_t *) node->data.state)->mat1)[reward_i][reward_j]) +
                     (double)((((im_state_t *) node->data.state)->mat2)[reward_i][reward_j]);
 
-    if (reward > 0)
-    return 10;
-    else
-        return 0;
+    return reward;
 }
 
 int main(int argc, char **argv) {
@@ -48,25 +45,14 @@ int main(int argc, char **argv) {
 
     coal_graph_node_t *start;
     coal_gen_im_graph(&graph, args);
-    coal_print_graph_list_im(stderr, graph, true, 4, 4, 4, 0);
     coal_rewards_set(graph, reward);
     coal_reward_transform(graph, &start);
 
     weight_t **mat;
     size_t size;
-    coal_graph_as_mat(&mat, &size, graph);
+    coal_graph_as_mat(&mat, &size, start);
 
-    fprintf(stdout, "\n");
-
-    for (size_t i = 1; i < size; ++i) {
-        for (size_t j = 1; j < size; ++j) {
-            fprintf(stdout, "%Lf ", mat[i][j]);
-        }
-
-        fprintf(stdout, "\n");
-    }
-
-    weight_t multiplier = -1/mat[2][2];
+    //weight_t multiplier = -1/mat[1][1];
 
     for (size_t i = 2; i < size; ++i) {
         weighted_edge_t *values = vector_get(start->edges);
@@ -80,14 +66,16 @@ int main(int argc, char **argv) {
         }
 
         if (edge != NULL) {
-            fprintf(stdout, "%Lf ", edge->weight * multiplier);
+            fprintf(stdout, "%Lf ", edge->weight);
+        } else {
+            fprintf(stdout, "0 ");
         }
     }
 
-    fprintf(stdout, "\n");
+    fprintf(stdout, "\n\n");
 
-    for (size_t i = 1; i < size; ++i) {
-        for (size_t j = 1; j < size; ++j) {
+    for (size_t i = 2; i < size; ++i) {
+        for (size_t j = 2; j < size; ++j) {
             fprintf(stdout, "%Lf ", mat[i][j]);
         }
 

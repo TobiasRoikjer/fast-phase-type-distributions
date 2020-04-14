@@ -149,7 +149,7 @@ int sampling_graph_pfd_constants(pdf_constant_t **out, size_t *out_size, coal_gr
 
 inline static sampling_number_t get_weight(weighted_edge_t value, size_t index) {
     // Add a small value such that all are unique
-    return value.weight + index * EPSILON;
+    return value.weight * (1 + index * 0.00001);
 }
 
 inline static sampling_number_t get_rate(coal_graph_node_t *node, size_t n_vertices) {
@@ -192,6 +192,9 @@ int _sampling_graph_pfd_constants_rec(sampling_number_t **k_out,
                                        size_t reward_index,
                                        size_t vector_len,
                                        sampling_number_t **vertices_k) {
+    if (!vertex->data.visited) {
+        DIE_ERROR(1, "Should be visited is not \n");
+    }
     if (vertices_k[vertex->data.vertex_index] != NULL) {
         *k_out = vertices_k[vertex->data.vertex_index];
         return 0;
@@ -287,13 +290,14 @@ int sampling_graph_pfd_constants_rec(pdf_constant_t **out, size_t *out_size,
     size_t size;
     coal_label_vertex_index(&size, graph);
     size++;
+    coal_graph_reset_visited(graph);
 
     sampling_number_t *reward_rates = calloc(size, sizeof(sampling_number_t));
 
     queue_t *queue;
     queue_create(&queue, 8);
-    size_t index = 0;
     queue_enqueue(queue, graph);
+    size_t index = size - 1;
 
     while(!queue_empty(queue)) {
         coal_graph_node_t *node = queue_dequeue(queue);
@@ -302,7 +306,8 @@ int sampling_graph_pfd_constants_rec(pdf_constant_t **out, size_t *out_size,
             continue;
         }
 
-        node->data.vertex_index = (size-1) - node->data.vertex_index;
+        node->data.vertex_index = index;
+        index--;
         reward_rates[node->data.vertex_index] = get_reward_rate(node, size, reward_index);
 
         weighted_edge_t *values = vector_get(node->edges);
@@ -330,13 +335,9 @@ int sampling_graph_pfd_constants_rec(pdf_constant_t **out, size_t *out_size,
     size_t count = 0;
     for (size_t j = 0; j < size; ++j) {
         if (!isinf(reward_rates[j]) && !isnan(reward_rates[j])) {
-            //if (count != 0 && fabsl(reward_rates[j]-(*out)[count-1].rate) <= EPSILON) {
-            //    (*out)[count-1].constant += k_out[j];
-            //} else {
             (*out)[count].rate = reward_rates[j];
             (*out)[count].constant = k_out[j];
             count++;
-            //}
         }
     }
 

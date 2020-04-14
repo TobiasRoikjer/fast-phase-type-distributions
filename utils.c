@@ -132,13 +132,14 @@ int graph_combine_edge(graph_node_t *from, graph_node_t *to, weight_t weight) {
 int graph_remove_edge_forwards(graph_node_t *from, graph_node_t *to) {
     size_t length = vector_length(from->edges);
     bool found = false;
+    weighted_edge_t *edges = (weighted_edge_t*)vector_get(from->edges);
 
-    for (ssize_t i = length; i >= 0; i--) {
-        weighted_edge_t *edge = &(((weighted_edge_t*)vector_get(from->edges))[i]);
+    for (ssize_t i = length-1; i >= 0; i--) {
+        weighted_edge_t edge = edges[i];
 
-        if (edge->node == to) {
+        if (edge.node == to) {
             if (found) {
-                DIE_PERROR(1, "Edge already found\n");
+                DIE_ERROR(1, "Edge already found\n");
             }
 
             vector_remove_entry(from->edges, (size_t) i);
@@ -147,7 +148,7 @@ int graph_remove_edge_forwards(graph_node_t *from, graph_node_t *to) {
     }
 
     if (!found) {
-        DIE_PERROR(1, "The edge was not found");
+        DIE_ERROR(1, "The edge was not found");
     }
 
     return 0;
@@ -156,12 +157,12 @@ int graph_remove_edge_backwards(graph_node_t *from, graph_node_t *to) {
     size_t length = vector_length(to->reverse_edges);
     bool found = false;
 
-    for (ssize_t i = length; i >= 0; i--) {
+    for (ssize_t i = length-1; i >= 0; i--) {
         weighted_edge_t *edge = &(((weighted_edge_t*)vector_get(to->reverse_edges))[i]);
 
         if (edge->node == from) {
             if (found) {
-                DIE_PERROR(1, "Edge already found\n");
+                DIE_ERROR(1, "Edge already found\n");
             }
 
             vector_remove_entry(to->reverse_edges, i);
@@ -170,7 +171,7 @@ int graph_remove_edge_backwards(graph_node_t *from, graph_node_t *to) {
     }
 
     if (!found) {
-        DIE_PERROR(1, "The edge was not found");
+        DIE_ERROR(1, "The edge was not found");
     }
 
     return 0;
@@ -193,7 +194,7 @@ int graph_redistribute_edge(graph_node_t *from, graph_node_t *to) {
 
         if (edge->node == to) {
             if (found) {
-                DIE_PERROR(1, "Edge already found\n");
+                DIE_ERROR(1, "Edge already found\n");
             }
 
             vector_remove_entry(from->edges, i);
@@ -204,7 +205,7 @@ int graph_redistribute_edge(graph_node_t *from, graph_node_t *to) {
     }
 
     if (!found) {
-        DIE_PERROR(1, "The edge was not found");
+        DIE_ERROR(1, "The edge was not found");
     }
 
     for (size_t i = 0; i < vector_length(from->edges); i++) {

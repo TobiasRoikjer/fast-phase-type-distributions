@@ -10,21 +10,9 @@ sampling_number_t cdf(pdf_constant_t *constants, size_t size, sampling_number_t 
         //fprintf(stderr, "%Lf, %Lf\n",constants[i].constant, constants[i].rate);
         if (!isnan(constants[i].constant) && !isinf(constants[i].constant) &&
                 !isnan(constants[i].rate) && !isinf(constants[i].rate)) {
-            bool negative = (constants[i].constant < 0);
-            sampling_number_t k = constants[i].constant;
-            int sign = 1;
-            if (negative) {
-                k = -k;
-                sign = -1;
+            if (constants[i].constant != 0) {
+                cdf += constants[i].constant*expl(-constants[i].rate*t);
             }
-            /*
-            fprintf(stderr, "const %Lf\n", constants[i].constant);
-            fprintf(stderr, "powl %Lf\n", powl(k, 1/t) );
-            fprintf(stderr, "expl %Lf\n", expl(-constants[i].rate));
-            fprintf(stderr, "tot %Lf\n", powl((powl(k, 1/t)  * expl(-constants[i].rate)), t));
-            */
-            //cdf += sign*powl((powl(k, -1/t)  * expl(constants[i].rate)), -t);
-            cdf += constants[i].constant*expl(-constants[i].rate*t);
         }
     }
 

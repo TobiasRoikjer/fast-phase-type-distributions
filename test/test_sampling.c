@@ -59,15 +59,39 @@ static void test_sampling_constants_slow() {
     }
 }
 
+
+static void test_sampling_constants_slow2() {
+    pdf_constant_t *constants;
+
+    size_t size;
+    size_t n = 10;
+    coal_graph_node_t *graph;
+    coal_gen_kingman_graph(&graph, n);
+
+    sampling_graph_pfd_constants(&constants, &size, graph, 4);
+
+    pdf_constant_t *p = constants;
+
+    for (size_t i = 0; i < size; ++i) {
+        for (size_t j = 0; j < 4; ++j) {
+            if (j == 2) {
+                printf("%Lf,%Lf\n", p->constant, p->rate);
+            }
+            p++;
+        }
+    }
+}
+
+
 static void test_sampling_constants_fast() {
     pdf_constant_t *constants;
 
     size_t size;
-    size_t n = 4;
+    size_t n = 10;
     coal_graph_node_t *graph;
     coal_gen_kingman_graph(&graph, n);
 
-    sampling_graph_pfd_constants_rec(&constants, &size, graph, n, 0);
+    sampling_graph_pfd_constants_rec(&constants, &size, graph, n, 2);
 
     pdf_constant_t *p = constants;
 
@@ -77,7 +101,7 @@ static void test_sampling_constants_fast() {
     }
 }
 
-static void testpdf(double t) {
+static void testcdffast(double t) {
     pdf_constant_t *constants;
 
     size_t size;
@@ -88,25 +112,26 @@ static void testpdf(double t) {
     sampling_graph_pfd_constants_rec(&constants, &size, graph, n, 0);
 
     pdf_constant_t *p = constants;
-    double pdf = 0;
+    double cdf = 0;
 
     for (size_t i = 0; i < size; ++i) {
         if (!isnan(constants[i].rate) && !isinf(constants[i].constant)) {
-            pdf += constants[i].constant * exp(-constants[i].rate * t);
+            cdf += constants[i].constant * expl(constants[i].rate * t);
         }
     }
 
-    fprintf(stderr, "PDF (t=%f): %f", t, pdf);
+    fprintf(stderr, "CDF (t=%f): %f\n", t, cdf);
 }
 
 int main(int argc, char **argv) {
 //    test_randexp();
     //test_sampling_graph();
-    //test_sampling_constants_slow();
-    test_sampling_constants_fast();
+    //test_sampling_constants_slow2();
+    //printf("\n\n");
+    //test_sampling_constants_fast();
 
     for (size_t i = 0; i < 10; ++i) {
-        testpdf((double)i*0.1f);
+        testcdffast((double)i*0.1f);
     }
 
     return 0;

@@ -375,12 +375,11 @@ void test_im_mat_utils() {
 
 void test_gen_im() {
     coal_graph_node_t *graph;
-    phdist_t *phdist;
     coal_gen_im_graph_args_t args = {
-            .n1 = 1,
+            .n1 = 2,
             .n2 = 2,
             .allow_back_migrations = false,
-            .num_iso_coal_events = 1,
+            .num_iso_coal_events = 2,
             .pop_scale1 = 10.0f,
             .pop_scale2 = 1000.0f,
             .mig_scale1 = 1.0f,
@@ -390,9 +389,7 @@ void test_gen_im() {
     coal_gen_im_graph(&graph, args);
     coal_print_graph_list(stdout, graph, true, (args.n1 + 1)*(args.n2 + 1)*2+3,
                           (args.n1+1));
-    coal_graph_as_phdist_rw(&phdist, graph);
-    phdist_print_as_matrix(phdist);
-    mat_print_as_matrix_with_abs(phdist->si_mat);
+
 }
 
 void test_gen_im_ss() {
@@ -410,6 +407,18 @@ void test_gen_im_ss() {
 
     coal_gen_im_ss_graph(&graph, args);
     coal_print_graph_list(stdout, graph, true, 4, 4);
+
+    weight_t **mat;
+    size_t size;
+    coal_graph_as_mat(&mat, &size, graph);
+
+    for (size_t i = 0; i < size; ++i) {
+        for (size_t j = 0; j < size; ++j) {
+            fprintf(stdout, "%Lf ", mat[i][j]);
+        }
+
+        fprintf(stdout, "\n");
+    }
 }
 
 void test_gen_im_time() {
@@ -636,8 +645,8 @@ int main(int argc, char **argv) {
     //printf("\n..\n");
     //test_im_mat_utils();
     //printf("\n..\n");
-    //test_gen_im();
-    //printf("\n..\n");
+    test_gen_im();
+    printf("\n..\n");
     //test_gen_im_time();
     //printf("\n..\n");
     //test_gen_im_cutoff();
@@ -650,7 +659,7 @@ int main(int argc, char **argv) {
     //printf("\n..\n");
     //test_num_coals();
     //printf("\n..\n");
-    test_reward_transform();
+    //test_reward_transform();
     //printf("\n..\n");
     return 0;
 }
