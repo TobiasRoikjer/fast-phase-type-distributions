@@ -376,19 +376,19 @@ void test_im_mat_utils() {
 void test_gen_im() {
     coal_graph_node_t *graph;
     coal_gen_im_graph_args_t args = {
-            .n1 = 2,
-            .n2 = 2,
+            .n1 = 3,
+            .n2 = 3,
             .allow_back_migrations = false,
-            .num_iso_coal_events = 2,
+            .num_iso_coal_events = 0,
             .pop_scale1 = 10.0f,
-            .pop_scale2 = 1000.0f,
-            .mig_scale1 = 1.0f,
-            .mig_scale2 = 1.0f
+            .pop_scale2 = 100.0f,
+            .mig_scale1 = 0.0f,
+            .mig_scale2 = 0.0f
     };
 
     coal_gen_im_graph(&graph, args);
-    coal_print_graph_list(stdout, graph, true, (args.n1 + 1)*(args.n2 + 1)*2+3,
-                          (args.n1+1));
+    coal_print_graph_list_im(stdout, graph, true, (args.n1 + 1)*(args.n2 + 1)*2+3,
+                          (args.n1+1), args.n1, args.n2);
 
 }
 
@@ -398,7 +398,7 @@ void test_gen_im_ss() {
             .n1 = 2,
             .n2 = 2,
             .allow_back_migrations = false,
-            .num_iso_coal_events = 1,
+            .num_iso_coal_events = 0,
             .pop_scale1 = 10.0f,
             .pop_scale2 = 1000.0f,
             .mig_scale1 = 1.0f,

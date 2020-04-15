@@ -1182,31 +1182,32 @@ int coal_gen_kingman_graph(coal_graph_node_t **graph, size_t n) {
     return 0;
 }
 
+static int im_state_mat_init(vec_entry_t ***mat, size_t n1, size_t n2) {
+    *mat = malloc(sizeof(vec_entry_t *) * (n1 + 1));
+
+    for (size_t i = 0; i < n1 + 1; ++i) {
+        (*mat)[i] = calloc(n2 + 1, sizeof(vec_entry_t));
+    }
+
+    return 0;
+}
+
 /*
  * Isolation with migration
  */
 int im_state_init(im_state_t **out, size_t n1, size_t n2) {
-    size_t state_size1 = n1 + 1;
-    size_t state_size2 = n2 + 1;
-
     *out = malloc(sizeof(im_state_t));
-    (*out)->mat1 = malloc(sizeof(vec_entry_t *) * state_size1);
-    (*out)->mat2 = malloc(sizeof(vec_entry_t *) * state_size1);
+    im_state_mat_init(&((*out)->mat1), n1, n2);
+    im_state_mat_init(&((*out)->mat2), n1, n2);
     (*out)->in_iso = true;
     (*out)->flag_mig1to2 = true;
     (*out)->flag_mig2to1 = true;
-
-    for (size_t i = 0; i < state_size1; ++i) {
-        (*out)->mat1[i] = calloc(state_size2, sizeof(vec_entry_t));
-        (*out)->mat2[i] = calloc(state_size2, sizeof(vec_entry_t));
-    }
-
 
     return 0;
 }
 
 int im_state_cpy(im_state_t **out,
-                  im_state_t *in,
+                  const im_state_t *in,
                   size_t n1, size_t n2) {
     im_state_init(out, n1, n2);
 
@@ -1261,6 +1262,26 @@ im_visit_vertex(coal_graph_node_t **out, im_state_t *state,
                 size_t vector_length,
                 coal_gen_im_graph_args_t *args);
 
+/*
+ * Adds mat2 into mat
+ */
+static void combine_im_matrix(vec_entry_t ***mat_out,
+        const vec_entry_t **mat1, const vec_entry_t **mat2,
+        size_t n1, size_t n2) {
+    im_state_mat_init(mat_out, n1, n2);
+
+    for (vec_entry_t i = 0; i < n1+1; i++) {
+        for (vec_entry_t j = 0; j < n2+1; j++) {
+            (*mat_out)[i][j] = mat1[i][j] + mat2[i][j];
+        }
+    }
+}
+
+static void empty_im_matrix(vec_entry_t ***mat_out,
+                              size_t n1, size_t n2) {
+    im_state_mat_init(mat_out, n1, n2);
+}
+
 static inline int im_visit_coal_loop(coal_graph_node_t **out,
         vec_entry_t **d,
         coal_param_real_t scale,
@@ -1303,19 +1324,57 @@ static inline int im_visit_coal_loop(coal_graph_node_t **out,
                     d[i1][j1]--;
                     d[i2][j2]--;
                     d[i1 + i2][j1 + j2]++;
-                    state->flag_mig1to2 = true;
-                    state->flag_mig2to1 = true;
+
+                    if (state->in_iso) {
+                        state->flag_mig1to2 = true;
+                        state->flag_mig2to1 = true;
+                    } else {
+                        state->flag_mig1to2 = false;
+                        state->flag_mig2to1 = false;
+                    }
 
                     vec_entry_t *v;
-                    im_state_as_vec(&v, state, args->n1, args->n2);
-
                     coal_graph_node_t *new_vertex;
-                    im_visit_vertex(&new_vertex,
-                                    state, v,
-                                    bst,
-                                    num_coal_events+1,
-                                    vector_length,
-                                    args);
+
+                    if (num_coal_events + 1 == args->num_iso_coal_events) {
+                        vec_entry_t **combined_mat;
+                        vec_entry_t **empty_mat;
+                        vec_entry_t **old_mat1;
+                        vec_entry_t **old_mat2;
+
+                        old_mat1 = state->mat1;
+                        old_mat2 = state->mat2;
+
+                        combine_im_matrix(&combined_mat, (const vec_entry_t **) state->mat1,
+                                          (const vec_entry_t **) state->mat2, args->n1, args->n2);
+                        empty_im_matrix(&empty_mat, args->n1, args->n2);
+
+                        state->flag_mig1to2 = false;
+                        state->flag_mig2to1 = false;
+                        state->mat1 = combined_mat;
+                        state->mat2 = empty_mat;
+                        state->in_iso = false;
+
+                        im_state_as_vec(&v, state, args->n1, args->n2);
+                        im_visit_vertex(&new_vertex,
+                                        state, v,
+                                        bst,
+                                        num_coal_events + 1,
+                                        vector_length,
+                                        args);
+
+                        state->in_iso = true;
+                        state->mat2 = old_mat2;
+                        state->mat1 = old_mat1;
+                    } else {
+                        im_state_as_vec(&v, state, args->n1, args->n2);
+                        im_visit_vertex(&new_vertex,
+                                        state, v,
+                                        bst,
+                                        num_coal_events + 1,
+                                        vector_length,
+                                        args);
+                    }
 
                     state->flag_mig2to1 = old_flag_mig2to1;
                     state->flag_mig1to2 = old_flag_mig1to2;
@@ -1400,20 +1459,6 @@ static inline int im_visit_mig_loop(coal_graph_node_t **out,
     return 0;
 }
 
-
-/*
- * Adds mat2 into mat
- */
-static void combine_im_matrix(vec_entry_t **mat, vec_entry_t **mat2,
-                              size_t n1, size_t n2) {
-    for (vec_entry_t i = 0; i < n1+1; i++) {
-        for (vec_entry_t j = 0; j < n2+1; j++) {
-            mat[i][j] += mat2[i][j];
-            mat2[i][j] = 0;
-        }
-    }
-}
-
 static void reset_im_flag_matrix(vec_entry_t **flag_mat, size_t n1, size_t n2) {
     for (vec_entry_t i = 0; i < n1+1; i++) {
         for (vec_entry_t j = 0; j < n2 + 1; j++) {
@@ -1465,26 +1510,9 @@ im_visit_vertex(coal_graph_node_t **out, im_state_t *state,
             im_visit_coal_loop(out, state->mat2, args->pop_scale2, state,
                                bst, num_coal_events, vector_length, args);
         } else {
-            if (state->in_iso) {
-                im_state_t *state2;
-                im_state_cpy(&state2, state, args->n1, args->n2);
-
-                // A bit of a hack. We use mat1 now as the shared
-                combine_im_matrix(state2->mat1, state2->mat2, args->n1, args->n2);
-                state2->flag_mig1to2 = false;
-                state2->flag_mig2to1 = false;
-                state2->in_iso = false;
-
-                vec_entry_t *state_vec2;
-                im_state_as_vec(&state_vec2, state2, args->n1, args->n2);
-
-                return im_visit_vertex(out, state2, state_vec2,
-                        bst, num_coal_events, vector_length, args);
-            } else {
-                coal_param_real_t scale = 1;
-                im_visit_coal_loop(out, state->mat1, scale, state,
-                                   bst, num_coal_events, vector_length, args);
-            }
+            coal_param_real_t scale = 1;
+            im_visit_coal_loop(out, state->mat1, scale, state,
+                               bst, num_coal_events, vector_length, args);
         }
 
         return 0;
@@ -1599,12 +1627,28 @@ int coal_gen_im_graph(coal_graph_node_t **graph, coal_gen_im_graph_args_t args) 
 
     im_state_t *initial;
     im_state_init(&initial, n1, n2);
+
     if (n1 > 0) {
         initial->mat1[1][0] = n1;
     }
 
     if (n2 > 0) {
         initial->mat2[0][1] = n2;
+    }
+
+    if (args.num_iso_coal_events == 0) {
+        vec_entry_t **combined;
+        vec_entry_t **empty;
+        combine_im_matrix(&combined,
+                          (const vec_entry_t **) initial->mat1,
+                          (const vec_entry_t **) initial->mat2, n1, n2);
+        empty_im_matrix(&empty, n1, n2);
+
+        initial->mat1 = combined;
+        initial->mat2 = empty;
+        initial->in_iso = false;
+        initial->flag_mig1to2 = false;
+        initial->flag_mig2to1 = false;
     }
 
     vec_entry_t *initial_vec;
@@ -2408,26 +2452,32 @@ static void _print_graph_list_im(FILE *stream, coal_graph_node_t *node,
             coal_graph_node_t *child = (coal_graph_node_t *) values[i].node;
             char *type;
             size_t ppop1, ppop2, cpop1, cpop2;
+            bool iso;
 
             ppop1 = count_lineages_mat(((im_state_t *) node->data.state)->mat1, n1, n2);
             ppop2 = count_lineages_mat(((im_state_t *) node->data.state)->mat2, n1, n2);
             cpop1 = count_lineages_mat(((im_state_t *) child->data.state)->mat1, n1, n2);
             cpop2 = count_lineages_mat(((im_state_t *) child->data.state)->mat2, n1, n2);
+            iso = ((im_state_t *) child->data.state)->in_iso;
 
-            if (cpop1 < ppop1) {
-                if (cpop2 > ppop2) {
-                    type = "M12";
+            if (iso) {
+                if (cpop1 < ppop1) {
+                    if (cpop2 > ppop2) {
+                        type = "M12";
+                    } else {
+                        type = "C1";
+                    }
+                } else if (cpop2 < ppop2) {
+                    if (cpop1 > ppop1) {
+                        type = "M21";
+                    } else {
+                        type = "C2";
+                    }
                 } else {
-                    type = "C1";
-                }
-            } else if (cpop2 < ppop2) {
-                if (cpop1 > ppop1) {
-                    type = "M21";
-                } else {
-                    type = "C2";
+                    type = "NONE";
                 }
             } else {
-                type = "NONE";
+                type = "Cm";
             }
 
             fprintf(stream, "\t");
