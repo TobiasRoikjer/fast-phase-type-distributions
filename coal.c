@@ -1366,6 +1366,12 @@ static inline int im_visit_coal_loop(coal_graph_node_t **out,
                         state->in_iso = true;
                         state->mat2 = old_mat2;
                         state->mat1 = old_mat1;
+
+                        // It is possible that two different events lead
+                        // to the same state after the iso period. Therefore,
+                        // we should possibly combine them into one edge.
+                        graph_combine_edge((graph_node_t *) *out,
+                                       (graph_node_t *) new_vertex, t);
                     } else {
                         im_state_as_vec(&v, state, args->n1, args->n2);
                         im_visit_vertex(&new_vertex,
@@ -1374,6 +1380,9 @@ static inline int im_visit_coal_loop(coal_graph_node_t **out,
                                         num_coal_events + 1,
                                         vector_length,
                                         args);
+
+                        graph_add_edge((graph_node_t *) *out,
+                                       (graph_node_t *) new_vertex, t);
                     }
 
                     state->flag_mig2to1 = old_flag_mig2to1;
@@ -1381,9 +1390,6 @@ static inline int im_visit_coal_loop(coal_graph_node_t **out,
                     d[i1 + i2][j1 + j2]--;
                     d[i2][j2]++;
                     d[i1][j1]++;
-
-                    graph_add_edge((graph_node_t *) *out,
-                            (graph_node_t *) new_vertex, t);
                 }
             }
         }
@@ -3039,10 +3045,8 @@ int coal_reward_transform(coal_graph_node_t *graph, coal_graph_node_t **start) {
     graph_add_edge((graph_node_t*) *start, (graph_node_t*) graph, 1);
     size_t largest;
 
-    coal_print_graph_list_im(stderr, graph, false, 3*3*2+3, 3, 2, 2);
     coal_label_vertex_index(&largest, *start);
     reset_graph_visited(*start);
-    ensure_graph_sanity(graph);
     _coal_reward_transform(graph);
 
     return 0;

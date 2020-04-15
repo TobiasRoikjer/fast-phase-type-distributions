@@ -165,7 +165,7 @@ int graph_remove_edge_backwards(graph_node_t *from, graph_node_t *to) {
                 DIE_ERROR(1, "Edge already found\n");
             }
 
-            vector_remove_entry(to->reverse_edges, i);
+            vector_remove_entry(to->reverse_edges, (size_t) i);
             found = true;
         }
     }
