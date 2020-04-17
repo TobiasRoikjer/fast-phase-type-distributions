@@ -544,12 +544,12 @@ void test_num_coals() {
             .allow_back_migrations = true,
             .pop_scale1 = 0.3f,
             .pop_scale2 = 0.7f,
-            .mig_scale1 = 1.0f,
-            .mig_scale2 = 1.0f,
+            .mig_scale1 = 0.01f,
+            .mig_scale2 = 0.01f,
     };
 
     long double* probs;
-    coal_im_get_number_coals_probs(&probs, 1.5f, &args);
+    coal_im_get_number_coals_probs(&probs, 1.0f, &args);
 
     for (size_t coals = 0; coals < args.n1+args.n2; ++coals) {
         fprintf(stdout, "%zu coals: %Lf\n", coals, probs[coals]);
@@ -645,8 +645,8 @@ int main(int argc, char **argv) {
     //printf("\n..\n");
     //test_im_mat_utils();
     //printf("\n..\n");
-    test_gen_im();
-    printf("\n..\n");
+    //test_gen_im();
+    //printf("\n..\n");
     //test_gen_im_time();
     //printf("\n..\n");
     //test_gen_im_cutoff();
@@ -657,8 +657,8 @@ int main(int argc, char **argv) {
     //printf("\n..\n");
     //test_gen_im_ss();
     //printf("\n..\n");
-    //test_num_coals();
-    //printf("\n..\n");
+    test_num_coals();
+    printf("\n..\n");
     //test_reward_transform();
     //printf("\n..\n");
     return 0;

@@ -2577,7 +2577,7 @@ void print_mat(const gsl_matrix_long_double *M) {
 void convert_mat(gsl_matrix *out, const gsl_matrix_long_double *M) {
     for (size_t i = 0; i < M->size1; ++i) {
         for (size_t j = 0; j < M->size2; ++j) {
-            gsl_matrix_set(out, i, j, (double) gsl_matrix_long_double_get(M, i, j));
+            gsl_matrix_set(out, i, j, (double) (gsl_matrix_long_double_get(M, i, j)));
         }
     }
 }
@@ -2585,14 +2585,14 @@ void convert_mat(gsl_matrix *out, const gsl_matrix_long_double *M) {
 void convert_mat_o(gsl_matrix_long_double *out, const gsl_matrix *M) {
     for (size_t i = 0; i < M->size1; ++i) {
         for (size_t j = 0; j < M->size2; ++j) {
-            gsl_matrix_long_double_set(out, i, j, gsl_matrix_get(M, i, j));
+            gsl_matrix_long_double_set(out, i, j, ((long double)gsl_matrix_get(M, i, j)));
         }
     }
 }
 
 void mat_mul(gsl_matrix_long_double *C, const gsl_matrix_long_double *A, const gsl_matrix_long_double *B) {
     // New
-    for (size_t i = 0; i < A->size1; ++i) {
+    /*for (size_t i = 0; i < A->size1; ++i) {
         for (size_t j = 0; j < B->size2; ++j) {
             long double r = 0;
 
@@ -2605,19 +2605,22 @@ void mat_mul(gsl_matrix_long_double *C, const gsl_matrix_long_double *A, const g
         }
     }
 
-    //return;
+    return;*/
     //old
     gsl_matrix *Ad = gsl_matrix_alloc(A->size1, A->size2);
     gsl_matrix *Bd = gsl_matrix_alloc(B->size1, B->size2);
     gsl_matrix *Cd = gsl_matrix_alloc(A->size1, B->size2);
 
-
+    
     convert_mat(Ad, A);
     convert_mat(Bd, B);
 
+    //fprintf(stderr, "Max %Lf, %Lf\n",gsl_matrix_long_double_max(A),
+    //        gsl_matrix_long_double_max(B));
+
     gsl_blas_dgemm(CblasNoTrans, CblasNoTrans,
                    1.0, Ad, Bd, 0.0, Cd);
-
+    
     convert_mat_o(C, Cd);
 }
 
@@ -2635,7 +2638,7 @@ void mat_combine(gsl_matrix_long_double *C, const gsl_matrix_long_double *A, con
     }
 }
 
-#define ADJ_SUM_ITERS 250
+#define ADJ_SUM_ITERS 100
 
 long double adj_sum(double to,
                     gsl_matrix_long_double *A,
@@ -2803,7 +2806,7 @@ int get_mat_prob(long double *prob, const size_t i, const size_t j, const gsl_ma
     gsl_matrix_long_double_memcpy(Mcpy, M);
     long double sum = 0;
 
-    for (size_t k = 0; k < 100; ++k) {
+    for (size_t k = 0; k < 200; ++k) {
         long double inc = gsl_matrix_long_double_get(Mcpy, i, j);
         sum += inc;
         mat_mul(Mcpy, M, Mcpy);
@@ -2958,15 +2961,17 @@ int coal_im_get_number_coals_probs(long double **out,
             ((*out)[coals]) = 0;
         }
 
-        if ((*out)[coals] < -0.00001) {
-            //DIE_ERROR(1, "Probability less than 1 occurred\n");
+        if ((*out)[coals] < -0.01) {
+            DIE_ERROR(1, "Probability less than 1 occurred (was %Lf)\n",
+                      (*out)[coals]);
         }
 
         sum += ((*out)[coals]);
     }
 
-    if (sum > 1.00001) {
-        DIE_ERROR(1, "Probability sum larger than 1 occurred\n");
+    if (sum > 1.01) {
+        DIE_ERROR(1, "Probability sum larger than 1 occurred (was %Lf)\n",
+                  sum);
     }
 
     (*out)[1] = 1-sum;
