@@ -30,10 +30,10 @@ size_t im_state_length(size_t n1, size_t n2);
 typedef struct {
     vec_entry_t *state_vec;
     void *state;
-    double full_path_value;
-    double prob;
-    double vertex_exp;
-    double descendants_exp_sum;
+    long double full_path_value;
+    long double prob;
+    long double vertex_exp;
+    long double descendants_exp_sum;
     bool visited;
     ssize_t vertex_index;
     size_t reset_int;
@@ -99,16 +99,17 @@ int coal_gen_im_prob_vertex_graph(coal_graph_node_t **graph, coal_graph_node_t *
 int coal_gen_im_ss_graph(coal_graph_node_t **graph, coal_gen_im_graph_args_t args);
 
 int coal_im_get_number_coals_prob(long double *out,
-                                  const size_t coals, const double isolation_time,
+                                   size_t coals, double isolation_time,
                                   const coal_gen_im_graph_args_t *args);
 int coal_im_get_number_coals_probs(long double **out,
-                                   const double isolation_time,
+                                   double isolation_time,
                                    const coal_gen_im_graph_args_t *args);
 int coal_graph_as_mat(weight_t ***weights, size_t *out_size, coal_graph_node_t *graph);
 int coal_graph_as_gsl_mat(gsl_matrix_long_double **weights, coal_graph_node_t *graph, bool include_absorbing);
 int coal_graph_as_phdist_rw(phdist_t **phdist, coal_graph_node_t *graph);
-double coal_mph_expected(coal_graph_node_t *graph, size_t reward_index);
-double coal_mph_cov(coal_graph_node_t *graph,
+long double coal_mph_expected(coal_graph_node_t *graph, size_t reward_index);
+long double coal_mph_im_expected(coal_graph_node_t *graph, size_t reward_index_i, size_t reward_index_j);
+long double coal_mph_cov(coal_graph_node_t *graph,
                     size_t reward_index_1,
                     size_t reward_index_2);
 int coal_label_vertex_index(size_t *largest_index, coal_graph_node_t *graph);

@@ -24,6 +24,7 @@ int main(int argc, char **argv) {
         return 0;
     } else if (strcmp(argv[1], "prob_coals") == 0) {
         size_t n = (size_t) atoi(argv[2]);
+        size_t allow_back = (bool) atoi(argv[3]);
 
         time_t start;
         start = time(NULL);
@@ -31,7 +32,7 @@ int main(int argc, char **argv) {
         coal_gen_im_graph_args_t args = {
                 .n1 = n,
                 .n2 = n,
-                .allow_back_migrations = true,
+                .allow_back_migrations = allow_back,
                 .pop_scale1 = 0.3f,
                 .pop_scale2 = 0.7f,
                 .mig_scale1 = 0.01f,

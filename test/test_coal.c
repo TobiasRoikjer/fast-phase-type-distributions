@@ -102,7 +102,7 @@ void test_exp_reward() {
     coal_gen_kingman_graph(&graph, 10);
 
     for (size_t i = 0; i < 10; i++) {
-        printf("Expected %zu: %f\n", i, coal_mph_expected(graph, i));
+        printf("Expected %zu: %Lf\n", i, coal_mph_expected(graph, i));
     }
 }
 
@@ -115,7 +115,7 @@ void test_cov_reward() {
     for (size_t j = 0; j < 4; j++) {
         printf("Cov %zu: ", j);
         for (size_t i = 0; i < 4; i++) {
-            printf("%f\t", coal_mph_cov(graph, i, j));
+            printf("%Lf\t", coal_mph_cov(graph, i, j));
         }
         printf("\n");
     }
@@ -379,11 +379,11 @@ void test_gen_im() {
             .n1 = 3,
             .n2 = 3,
             .allow_back_migrations = false,
-            .num_iso_coal_events = 0,
-            .pop_scale1 = 10.0f,
-            .pop_scale2 = 100.0f,
-            .mig_scale1 = 0.0f,
-            .mig_scale2 = 0.0f
+            .num_iso_coal_events = 4,
+            .pop_scale1 = 1.0f,
+            .pop_scale2 = 1.0f,
+            .mig_scale1 = 1.0f,
+            .mig_scale2 = 1.0f
     };
 
     coal_gen_im_graph(&graph, args);

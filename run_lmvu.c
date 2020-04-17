@@ -8,12 +8,12 @@ int main(int argc, char **argv) {
         coal_gen_kingman_graph(&graph, n);
 
         for (size_t i = 0; i < n; i++) {
-            printf("exp,%zu,%zu,%zu,%f\n", n, i, i, coal_mph_expected(graph, i));
+            printf("exp,%zu,%zu,%zu,%Lf\n", n, i, i, coal_mph_expected(graph, i));
         }
 
         for (size_t j = 0; j < n; j++) {
             for (size_t i = j; i < n; i++) {
-                printf("cov,%zu,%zu,%zu,%f\n", n, j, i, coal_mph_cov(graph, i, j));
+                printf("cov,%zu,%zu,%zu,%Lf\n", n, j, i, coal_mph_cov(graph, i, j));
             }
         }
     }
