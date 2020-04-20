@@ -21,7 +21,7 @@ int main(int argc, char **argv) {
     size_t coals = (size_t)atoi(argv[3]);
     size_t n1 = (size_t)atoi(argv[4]);
     size_t n2 = (size_t)atoi(argv[5]);
-    bool back_migrations = (bool)atoi(argv[6]);
+    coal_migration_param back_migrations = (coal_migration_param)atoi(argv[6]);
     coal_param_real_t pop_scale1 = (coal_param_real_t)atof(argv[7]);
     coal_param_real_t pop_scale2 = (coal_param_real_t)atof(argv[8]);
     coal_param_real_t mig_scale1 = (coal_param_real_t)atof(argv[9]);
@@ -36,7 +36,7 @@ int main(int argc, char **argv) {
             .n1 = n1,
             .n2 = n2,
             .num_iso_coal_events = coals,
-            .allow_back_migrations = back_migrations,
+            .migration_type = back_migrations,
             .pop_scale1 = pop_scale1,
             .pop_scale2 = pop_scale2,
             .mig_scale1 = mig_scale1,

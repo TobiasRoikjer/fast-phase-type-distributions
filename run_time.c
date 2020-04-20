@@ -32,7 +32,7 @@ int main(int argc, char **argv) {
         coal_gen_im_graph_args_t args = {
                 .n1 = n,
                 .n2 = n,
-                .allow_back_migrations = allow_back,
+                .migration_type = allow_back,
                 .pop_scale1 = 0.3f,
                 .pop_scale2 = 0.7f,
                 .mig_scale1 = 0.01f,

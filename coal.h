@@ -56,11 +56,17 @@ int coal_gen_erlang_phdist(phdist_t **phdist, size_t samples);
 int coal_seg_sites(d_dist_t **dist, phdist_t *phdist);
 int coal_gen_kingman_graph(coal_graph_node_t **graph, size_t n);
 
+typedef enum {
+    MIG_DIR,
+    MIG_ALL,
+    MIG_ONCE
+} coal_migration_param;
+
 typedef struct {
     size_t n1;
     size_t n2;
     size_t num_iso_coal_events;
-    bool allow_back_migrations;
+    coal_migration_param migration_type;
     coal_param_real_t pop_scale1;
     coal_param_real_t pop_scale2;
     coal_param_real_t mig_scale1;
@@ -73,7 +79,7 @@ typedef struct {
     size_t n1;
     size_t n2;
     size_t left;
-    bool allow_back_migrations;
+    coal_migration_param migration_type;
     coal_param_real_t pop_scale1;
     coal_param_real_t pop_scale2;
     coal_param_real_t mig_scale1;
@@ -87,7 +93,7 @@ typedef struct {
     size_t n2;
     size_t left_n1;
     size_t left_n2;
-    bool allow_back_migrations;
+    coal_migration_param migration_type;
     coal_param_real_t pop_scale1;
     coal_param_real_t pop_scale2;
     coal_param_real_t mig_scale1;

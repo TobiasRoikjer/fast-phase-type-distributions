@@ -12,7 +12,7 @@ int main(int argc, char **argv) {
     double isolation_time = atof(argv[1]);
     size_t n1 = (size_t)atoi(argv[2]);
     size_t n2 = (size_t)atoi(argv[3]);
-    bool back_migrations = (bool)atoi(argv[4]);
+    coal_migration_param back_migrations = (coal_migration_param)atoi(argv[4]);
     coal_param_real_t pop_scale1 = (coal_param_real_t)atof(argv[5]);
     coal_param_real_t pop_scale2 = (coal_param_real_t)atof(argv[6]);
     coal_param_real_t mig_scale1 = (coal_param_real_t)atof(argv[7]);
@@ -24,7 +24,7 @@ int main(int argc, char **argv) {
     coal_gen_im_graph_args_t args = {
             .n1 = n1,
             .n2 = n2,
-            .allow_back_migrations = back_migrations,
+            .migration_type = back_migrations,
             .pop_scale1 = pop_scale1,
             .pop_scale2 = pop_scale2,
             .mig_scale1 = mig_scale1,
