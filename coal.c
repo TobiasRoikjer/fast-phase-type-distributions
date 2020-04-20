@@ -2288,6 +2288,7 @@ void _reset_graph_visited(coal_graph_node_t *node, size_t reset_int) {
     }
 
     node->data.visited = false;
+    node->data.visits = 0;
 }
 
 static void reset_graph_visited(coal_graph_node_t *node) {
@@ -2317,6 +2318,7 @@ void _reset_graph(coal_graph_node_t *node, size_t reset_int) {
     node->data.prob = -1;
     node->data.descendants_exp_sum = -1;
     node->data.visited = false;
+    node->data.visits = 0;
     node->data.pointer = NULL;
 }
 
@@ -2363,13 +2365,16 @@ long double coal_mph_expected(coal_graph_node_t *graph, size_t reward_index) {
     return _coal_mph_expected(graph, reward_index);
 }
 
-long double _coal_mph_im_expected(coal_graph_node_t *node, size_t rw_i, size_t rw_j) {
-    if (node->data.full_path_value >= 0) {
-        return node->data.full_path_value;
+gsl_matrix_long_double * _coal_mph_im_expected(coal_graph_node_t *node, size_t n1, size_t n2) {
+    if (node->data.visits >= 1) {
+        return node->data.pointer;
+    }
+
+    if (node->data.visits == 0) {
+        node->data.pointer = gsl_matrix_long_double_calloc(n1+1, n2+1);
     }
 
     double rate = 0;
-    double sum = 0;
     weighted_edge_t *values = vector_get(node->edges);
 
     for (size_t i = 0; i < vector_length(node->edges); i++) {
@@ -2377,31 +2382,45 @@ long double _coal_mph_im_expected(coal_graph_node_t *node, size_t rw_i, size_t r
         rate += values[i].weight;
     }
 
+    for (size_t i = 0; i <= n1; ++i) {
+        for (size_t j = 0; j <= n2; ++j) {
+            long double reward;
+            reward = ((im_state_t*)node->data.state)->mat1[i][j] +
+                     ((im_state_t*)node->data.state)->mat2[i][j];
+
+            if (rate != 0) {
+                long double exp = 1 / rate;
+                long double current = gsl_matrix_long_double_get(node->data.pointer, i, j);
+                gsl_matrix_long_double_set(node->data.pointer, i, j, current + exp * reward);
+            }
+        }
+    }
+
+    node->data.visits++;
+
+    gsl_matrix_long_double *scaled = gsl_matrix_long_double_alloc(n1+1, n2+1);
+
     for (size_t i = 0; i < vector_length(node->edges); i++) {
         weight_t prob = values[i].weight / rate;
-        sum += prob * _coal_mph_im_expected((coal_graph_node_t*) values[i].node,
-                                         rw_i, rw_j);
+        gsl_matrix_long_double *res = _coal_mph_im_expected((coal_graph_node_t*) values[i].node,
+                                                            n1, n2);
+        gsl_matrix_long_double_memcpy(scaled, res);
+        gsl_matrix_long_double_scale(scaled, (double)prob);
+        gsl_matrix_long_double_add(node->data.pointer, scaled);
     }
 
-    long double reward;
-    reward = ((im_state_t*)node->data.state)->mat1[rw_i][rw_j] +
-            ((im_state_t*)node->data.state)->mat2[rw_i][rw_j];
+    gsl_matrix_long_double_free(scaled);
 
-    if (rate != 0) {
-        long double exp = 1 / rate;
-        sum += exp * reward;
-    }
+    node->data.pointer = node->data.pointer;
 
-    node->data.full_path_value = sum;
-
-    return sum;
+    return node->data.pointer;
 }
 
 
-long double coal_mph_im_expected(coal_graph_node_t *graph, size_t reward_index_i, size_t reward_index_j) {
+gsl_matrix_long_double * coal_mph_im_expected(coal_graph_node_t *graph, size_t n1, size_t n2) {
     reset_graph(graph);
 
-    return _coal_mph_im_expected(graph, reward_index_i, reward_index_j);
+    return _coal_mph_im_expected(graph, n1, n2);
 }
 
 void coal_mph_cov_assign_vertex(coal_graph_node_t *node, size_t reward_index) {

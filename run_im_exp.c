@@ -32,10 +32,12 @@ int main(int argc, char **argv) {
     };
 
     coal_gen_im_graph(&graph, args);
+    coal_mph_im_expected(graph, n1, n2);
+    gsl_matrix_long_double *mat = graph->data.pointer;
 
     for (size_t i = 0; i <= n1; ++i) {
         for (size_t j = 0; j <= n2; ++j) {
-            fprintf(stdout, "%Lf ", coal_mph_im_expected(graph, i, j));
+            fprintf(stdout, "%Lf ", gsl_matrix_long_double_get(mat, i, j));
         }
 
         fprintf(stdout, "\n");

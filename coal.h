@@ -35,6 +35,7 @@ typedef struct {
     long double vertex_exp;
     long double descendants_exp_sum;
     bool visited;
+    size_t visits;
     ssize_t vertex_index;
     size_t reset_int;
     void *pointer;
@@ -114,7 +115,7 @@ int coal_graph_as_mat(weight_t ***weights, size_t *out_size, coal_graph_node_t *
 int coal_graph_as_gsl_mat(gsl_matrix_long_double **weights, coal_graph_node_t *graph, bool include_absorbing);
 int coal_graph_as_phdist_rw(phdist_t **phdist, coal_graph_node_t *graph);
 long double coal_mph_expected(coal_graph_node_t *graph, size_t reward_index);
-long double coal_mph_im_expected(coal_graph_node_t *graph, size_t reward_index_i, size_t reward_index_j);
+gsl_matrix_long_double * coal_mph_im_expected(coal_graph_node_t *graph, size_t n1, size_t n2);
 long double coal_mph_cov(coal_graph_node_t *graph,
                     size_t reward_index_1,
                     size_t reward_index_2);
