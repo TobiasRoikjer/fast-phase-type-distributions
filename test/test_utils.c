@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <inttypes.h>
+#include <gsl/gsl_matrix_long_double.h>
 
 #include "../utils.h"
 
@@ -228,14 +229,27 @@ static void test_queue() {
     printf("%c" , *(char*)queue_dequeue(queue));
 }
 
+static void testblockio() {
+    gsl_matrix_long_double *mat = gsl_matrix_long_double_alloc(2, 3);
+    gsl_matrix_long_double_set(mat, 0, 0, 1);
+    gsl_matrix_long_double_set(mat, 0, 1, 2);
+    gsl_matrix_long_double_set(mat, 0, 2, 3);
+    gsl_matrix_long_double_set(mat, 1, 0, 4);
+    gsl_matrix_long_double_set(mat, 1, 1, 5);
+    gsl_matrix_long_double_set(mat, 1, 2, 6);
+
+    gsl_block_long_double_fprintf(stdout, mat->block, "%Lf");
+}
+
 int main(int argc, char **argv) {
     //test_vector();
     //test_vector2();
     //test_vector3();
-    test_vector4();
+    //test_vector4();
     //test_graph();
     //test_graph2();
     //test_queue();
+    testblockio();
 
     return 0;
 }

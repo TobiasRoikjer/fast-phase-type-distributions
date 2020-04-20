@@ -2367,31 +2367,33 @@ long double coal_mph_expected(coal_graph_node_t *graph, size_t reward_index) {
 
 gsl_matrix_long_double * _coal_mph_im_expected(coal_graph_node_t *node, size_t n1, size_t n2) {
     if (node->data.visits >= 1) {
+        // TODO: This does not work if visits > 1...
+        // We must pass on some probability parameter.
         return node->data.pointer;
     }
 
-    if (node->data.visits == 0) {
-        node->data.pointer = gsl_matrix_long_double_calloc(n1+1, n2+1);
-    }
-
-    double rate = 0;
     weighted_edge_t *values = vector_get(node->edges);
+    double rate = 0;
 
     for (size_t i = 0; i < vector_length(node->edges); i++) {
         // Sum the rates
         rate += values[i].weight;
     }
 
-    for (size_t i = 0; i <= n1; ++i) {
-        for (size_t j = 0; j <= n2; ++j) {
-            long double reward;
-            reward = ((im_state_t*)node->data.state)->mat1[i][j] +
-                     ((im_state_t*)node->data.state)->mat2[i][j];
+    if (node->data.visits == 0) {
+        node->data.pointer = gsl_matrix_long_double_calloc(n1+1, n2+1);
 
-            if (rate != 0) {
-                long double exp = 1 / rate;
-                long double current = gsl_matrix_long_double_get(node->data.pointer, i, j);
-                gsl_matrix_long_double_set(node->data.pointer, i, j, current + exp * reward);
+        for (size_t i = 0; i <= n1; ++i) {
+            for (size_t j = 0; j <= n2; ++j) {
+                long double reward;
+                reward = ((im_state_t*)node->data.state)->mat1[i][j] +
+                         ((im_state_t*)node->data.state)->mat2[i][j];
+
+                if (rate != 0) {
+                    long double exp = 1 / rate;
+                    long double current = gsl_matrix_long_double_get(node->data.pointer, i, j);
+                    gsl_matrix_long_double_set(node->data.pointer, i, j, current + exp * reward);
+                }
             }
         }
     }
