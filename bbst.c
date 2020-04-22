@@ -467,12 +467,12 @@ void avl_vec_node_destroy(avl_vec_node_t *node) {
     free(node);
 }
 
-avl_vec_node_t * avl_vec_find(avl_vec_node_t *rootptr, vec_entry_t *key, const size_t vec_length) {
+avl_vec_node_t * avl_vec_find(const avl_vec_node_t *rootptr, const vec_entry_t *key, const size_t vec_length) {
     if (rootptr == NULL) {
         return NULL;
     }
 
-    avl_vec_node_t *node = rootptr;
+    avl_vec_node_t *node = (avl_vec_node_t *) rootptr;
 
     while (1) {
         int res = radix_cmp(key, node->key, vec_length);

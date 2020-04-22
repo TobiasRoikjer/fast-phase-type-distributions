@@ -89,7 +89,7 @@ int main(int argc, char **argv) {
                 };
 
                 coal_graph_node_t *start;
-                coal_gen_im_graph(&graph, args);
+                coal_gen_im_graph(&graph, NULL, args);
                 coal_rewards_set(graph, reward);
                 coal_reward_transform(graph, &start);
                 print_rw_mat(f, start);

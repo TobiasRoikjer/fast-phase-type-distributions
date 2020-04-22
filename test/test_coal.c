@@ -379,7 +379,7 @@ void print_type(coal_graph_node_t *node, FILE *f) {
 
     node->data.visited = true;
 
-    fprintf(f, "%zu, %zu\n", node->data.vertex_index, node->data.type);
+    fprintf(f, "%zu, %zu\n", node->data.vertex_index, node->data.coals);
 
     weighted_edge_t *values = vector_get(node->edges);
 
@@ -401,7 +401,7 @@ void test_gen_im() {
             .mig_scale2 = 1.0f
     };
 
-    coal_gen_im_graph(&graph, args);
+    coal_gen_im_graph(&graph, NULL, args);
     //coal_print_graph_list_im(stdout, graph, true, (args.n1 + 1)*(args.n2 + 1)*2+3,
     //                      (args.n1+1), args.n1, args.n2);
 
@@ -471,7 +471,7 @@ void test_gen_im_time() {
                 .mig_scale2 = 1.0f
         };
 
-        coal_gen_im_graph(&graph, args);
+        coal_gen_im_graph(&graph, NULL, args);
     }
 }
 
@@ -519,7 +519,7 @@ void test_gen_im2() {
     };
 
 
-    coal_gen_im_graph(&graph, args);
+    coal_gen_im_graph(&graph, NULL, args);
     coal_print_graph_list_im(stdout, graph, true, (args.n1 + 1)*(args.n2 + 1)*2+3,
                              (args.n1+1), args.n1, args.n2);
     weight_t **mat;
@@ -637,6 +637,98 @@ void test_reward_transform() {
     }
 }
 
+void test_redir() {
+    size_t n1 = 3;
+    size_t n2 = 3;
+
+    for (size_t coals = 1; coals <= n1+n2-1; ++coals) {
+        coal_graph_node_t *graph;
+
+        coal_gen_im_graph_args_t args3 = {
+                .n1 = n1,
+                .n2 = n2,
+                .num_iso_coal_events = coals,
+                .migration_type = MIG_ALL,
+                .pop_scale1 = 1,
+                .pop_scale2 = 1,
+                .mig_scale1 = 1,
+                .mig_scale2 = 1
+        };
+
+        coal_gen_im_graph(&graph, NULL, args3);
+
+        //coal_print_graph_list_im(stderr, graph, true, (n1 + 1) * (n2 + 1) * 2 + 3, n1+1, n1, n2);
+        //fprintf(stderr, "\n========\n\n");
+
+        coal_graph_node_t *no_iso_graph;
+
+        coal_gen_im_graph_args_t args = {
+                .n1 = n1,
+                .n2 = n2,
+                .num_iso_coal_events = 0,
+                .migration_type = MIG_ALL,
+                .pop_scale1 = 1,
+                .pop_scale2 = 1,
+                .mig_scale1 = 1,
+                .mig_scale2 = 1
+        };
+
+        avl_vec_node_t *bst_no_iso;
+        coal_gen_im_graph(&no_iso_graph, &bst_no_iso, args);
+
+        coal_graph_node_t *iso_graph;
+
+        coal_gen_im_graph_args_t args2 = {
+                .n1 = n1,
+                .n2 = n2,
+                .num_iso_coal_events = n1 + n1 - 1,
+                .migration_type = MIG_ALL,
+                .pop_scale1 = 1,
+                .pop_scale2 = 1,
+                .mig_scale1 = 1,
+                .mig_scale2 = 1
+        };
+
+        coal_gen_im_graph(&iso_graph, NULL, args2);
+
+        coal_graph_im_redirect_at_coals(iso_graph, coals, bst_no_iso);
+
+        coal_print_graph_list_im(stderr, iso_graph, false, (n1 + 1) * (n2 + 1) * 2 + 3, n1 + 1, n1, n2);
+
+
+        weight_t **mat;
+        weight_t **mat2;
+        size_t size;
+        size_t size2;
+        coal_graph_as_mat(&mat, &size, graph);
+
+        fprintf(stdout, "\n");
+        for (size_t i = 0; i < size; ++i) {
+            for (size_t j = 0; j < size; ++j) {
+                fprintf(stdout, "%Lf ", mat[i][j]);
+            }
+
+            fprintf(stdout, "\n");
+        }
+
+        fprintf(stdout, "\n");
+        coal_graph_as_mat(&mat2, &size2, iso_graph);
+
+        fprintf(stdout, "\n");
+        for (size_t i = 0; i < size2; ++i) {
+            for (size_t j = 0; j < size2; ++j) {
+                fprintf(stdout, "%Lf ", mat2[i][j]);
+
+                if (fabsl(mat2[i][j] - mat[i][j]) > 0.01) {
+                    fflush(stdout);
+                    DIE_ERROR(1, "Mat diff!\n");
+                }
+            }
+
+            fprintf(stdout, "\n");
+        }
+    }
+}
 
 int main(int argc, char **argv) {
     //test_gen();
@@ -681,7 +773,7 @@ int main(int argc, char **argv) {
     //printf("\n..\n");
     //test_im_mat_utils();
     //printf("\n..\n");
-    test_gen_im();
+    //test_gen_im();
     //printf("\n..\n");
     //test_gen_im_time();
     //printf("\n..\n");
@@ -693,9 +785,11 @@ int main(int argc, char **argv) {
     //printf("\n..\n");
     //test_gen_im_ss();
     //printf("\n..\n");
-    test_num_coals();
-    printf("\n..\n");
+    //test_num_coals();
+    //printf("\n..\n");
     //test_reward_transform();
     //printf("\n..\n");
+    test_redir();
+    printf("\n..\n");
     return 0;
 }

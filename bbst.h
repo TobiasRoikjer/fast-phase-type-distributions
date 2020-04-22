@@ -48,6 +48,6 @@ typedef struct avl_vec_node {
 int avl_vec_node_create(avl_vec_node_t **node, vec_entry_t *key, void *entry, avl_vec_node_t *parent);
 void avl_vec_node_destroy(avl_vec_node_t *node);
 int avl_vec_insert(avl_vec_node_t **root, vec_entry_t *key, void *entry, size_t vec_length);
-avl_vec_node_t * avl_vec_find(avl_vec_node_t *rootptr, vec_entry_t *key, size_t vec_length);
+avl_vec_node_t * avl_vec_find(const avl_vec_node_t *rootptr, const vec_entry_t *key, size_t vec_length);
 
 #endif // AMAZEPHASE_BSST_H

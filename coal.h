@@ -13,6 +13,8 @@ typedef size_t vec_entry_t;
 typedef struct {
     vec_entry_t **mat1;
     vec_entry_t **mat2;
+    size_t n1;
+    size_t n2;
     bool flag_mig1to2;
     bool flag_mig2to1;
     bool in_iso;
@@ -40,6 +42,7 @@ typedef struct {
     size_t reset_int;
     void *pointer;
     double reward;
+    size_t coals;
     size_t type;
 } coal_graph_node_data_t;
 
@@ -75,7 +78,7 @@ typedef struct {
     coal_param_real_t mig_scale2;
 } coal_gen_im_graph_args_t;
 
-int coal_gen_im_graph(coal_graph_node_t **graph, coal_gen_im_graph_args_t args);
+int coal_gen_im_graph(coal_graph_node_t **graph, avl_vec_node_t **bst, coal_gen_im_graph_args_t args);
 
 typedef struct {
     size_t n1;
@@ -109,6 +112,7 @@ int coal_gen_im_ss_graph(coal_graph_node_t **graph, coal_gen_im_graph_args_t arg
 int coal_im_get_number_coals_probs(long double **out,
                                    double isolation_time,
                                    const coal_gen_im_graph_args_t *args);
+int coal_graph_im_redirect_at_coals(coal_graph_node_t *graph, const size_t coals, const avl_vec_node_t *non_iso_bst);
 int coal_graph_as_mat(weight_t ***weights, size_t *out_size, coal_graph_node_t *graph);
 int coal_graph_as_gsl_mat(gsl_matrix_long_double **weights, coal_graph_node_t *graph, bool include_absorbing);
 int coal_graph_as_phdist_rw(phdist_t **phdist, coal_graph_node_t *graph);

@@ -31,7 +31,7 @@ int main(int argc, char **argv) {
             .mig_scale2 = mig_scale2
     };
 
-    coal_gen_im_graph(&graph, args);
+    coal_gen_im_graph(&graph, NULL, args);
     coal_mph_im_expected(graph, n1, n2);
     gsl_matrix_long_double *mat = graph->data.pointer;
 

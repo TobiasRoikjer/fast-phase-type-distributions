@@ -68,7 +68,7 @@ int main(int argc, char **argv) {
                             };
 
                             size_t largest_index;
-                            coal_gen_im_graph(&graph, args);
+                            coal_gen_im_graph(&graph, NULL, args);
                             coal_label_vertex_index(&largest_index, graph);
                             max_states = largest_index > max_states ? largest_index : max_states;
                             size_t edges = coal_get_edges(graph);

@@ -11,6 +11,12 @@
 #include "bbst.h"
 #include "utils.h"
 
+typedef enum  {
+  IM_VERTEX_TYPE_MIG,
+  IM_VERTEX_TYPE_COAL,
+  IM_VERTEX_TYPE_START
+} im_vertex_type_t;
+
 static void reset_graph_visited(coal_graph_node_t *node);
 
 typedef struct bst_node bst_node_t;
@@ -863,7 +869,7 @@ int coal_graph_as_phdist_rw(phdist_t **phdist, coal_graph_node_t *graph) {
     coal_graph_node_t *abs_vertex = get_abs_vertex(graph);
 
     if (abs_vertex == NULL) {
-        DIE_ERROR(1, "Cannot find absorbing vertex. Not a phase-type");
+        DIE_ERROR(1, "Cannot find absorbing vertex. Not a phase-coals");
     }
 
     queue_enqueue(queue, abs_vertex);
@@ -1199,6 +1205,8 @@ int im_state_init(im_state_t **out, size_t n1, size_t n2) {
     *out = malloc(sizeof(im_state_t));
     im_state_mat_init(&((*out)->mat1), n1, n2);
     im_state_mat_init(&((*out)->mat2), n1, n2);
+    (*out)->n1 = n1;
+    (*out)->n2 = n2;
     (*out)->in_iso = true;
     (*out)->flag_mig1to2 = true;
     (*out)->flag_mig2to1 = true;
@@ -1388,6 +1396,7 @@ static inline int im_visit_coal_loop(coal_graph_node_t **out,
                                        (graph_node_t *) new_vertex, t);
                     }
 
+                    new_vertex->data.type = IM_VERTEX_TYPE_COAL;
                     state->flag_mig2to1 = old_flag_mig2to1;
                     state->flag_mig1to2 = old_flag_mig1to2;
                     d[i1 + i2][j1 + j2]--;
@@ -1471,6 +1480,7 @@ static inline int im_visit_mig_loop(coal_graph_node_t **out,
                             vector_length,
                             args);
 
+            new_vertex->data.type = IM_VERTEX_TYPE_MIG;
             *flag_mig_from = old_flag_mig_from;
             *flag_mig_to = old_flag_mig_to;
             d_to[i][j]--;
@@ -1515,7 +1525,7 @@ im_visit_vertex(coal_graph_node_t **out, im_state_t *state,
         im_state_as_vec(&vertex_state_vec, vertex_state, args->n1, args->n2);
 
         coal_graph_node_create(out, state_vec, vertex_state);
-        (*out)->data.type = num_coal_events;
+        (*out)->data.coals = num_coal_events;
 
         avl_vec_insert(&bst, state_vec, *out, vector_length);
 
@@ -1590,7 +1600,7 @@ im_ss_visit_vertex(coal_graph_node_t **out,
     } else {
         coal_graph_node_create(out, state, state);
         size_t num_coal_events = (args->n1 + args->n2) - (npop1 + npop2);
-        (*out)->data.type = num_coal_events;
+        (*out)->data.coals = num_coal_events;
 
         avl_vec_insert(&bst, state, *out, vector_length);
 
@@ -1707,7 +1717,7 @@ im_ss_visit_vertex(coal_graph_node_t **out,
     }
 }
 
-int coal_gen_im_graph(coal_graph_node_t **graph, coal_gen_im_graph_args_t args) {
+int coal_gen_im_graph(coal_graph_node_t **graph, avl_vec_node_t **bst, coal_gen_im_graph_args_t args) {
     size_t n1 = args.n1;
     size_t n2 = args.n2;
 
@@ -1782,7 +1792,14 @@ int coal_gen_im_graph(coal_graph_node_t **graph, coal_gen_im_graph_args_t args) 
     im_visit_vertex(&state_graph, initial, initial_vec, BST,
                     0, im_state_length(n1, n2), &args);
 
+    state_graph->data.type = IM_VERTEX_TYPE_START;
+    state_graph->data.coals = 0;
+
     *graph = state_graph;
+
+    if (bst != NULL) {
+        *bst = BST;
+    }
 
     return 0;
 }
@@ -2733,11 +2750,7 @@ void sum_prob(long double* out, const gsl_matrix *mat_exp, coal_graph_node_t *no
     }
 
     // Use row 0 as we always start at vertex 0
-    out[node->data.type] += gsl_matrix_get(mat_exp, 0, (size_t)node->data.vertex_index-1);
-
-    if (isnan(out[node->data.type])) {
-        exit(1);
-    }
+    out[node->data.coals] += gsl_matrix_get(mat_exp, 0, (size_t)node->data.vertex_index-1);
 
     weighted_edge_t *values = vector_get(node->edges);
 
@@ -2917,4 +2930,84 @@ int coal_reward_transform(coal_graph_node_t *graph, coal_graph_node_t **start) {
     _coal_reward_transform(graph);
 
     return 0;
+}
+
+coal_graph_node_t * find_similar_vertex(const vec_entry_t *state, const size_t state_length,
+        const avl_vec_node_t *non_iso_bst) {
+    return avl_vec_find(non_iso_bst, state, state_length)->entry;
+}
+
+int _coal_graph_im_redirect_at_coals(coal_graph_node_t *node, const size_t coals,
+                                     const avl_vec_node_t *non_iso_bst) {
+    if (node->data.visited) {
+        return 0;
+    }
+
+    node->data.visited = true;
+
+    bool changes = false;
+
+    do {
+        changes = false;
+        weighted_edge_t *values = vector_get(node->edges);
+
+        for (size_t i = 0; i < vector_length(node->edges); i++) {
+            coal_graph_node_t *child = (coal_graph_node_t *) values[i].node;
+
+            if (!((im_state_t*)child->data.state)->in_iso) {
+                // This node is from the non-isolated part
+                continue;
+            }
+
+            if (child->data.coals == coals && child->data.type == IM_VERTEX_TYPE_COAL) {
+                // We have found a node that should no longer exist
+                im_state_t *state = child->data.state;
+                im_state_t *cpy_state;
+                im_state_cpy(&cpy_state, state, state->n1, state->n2);
+                cpy_state->flag_mig1to2 = false;
+                cpy_state->flag_mig2to1 = false;
+                cpy_state->in_iso = false;
+                vec_entry_t **combined_mat;
+                vec_entry_t **empty_mat;
+
+                combine_im_matrix(&combined_mat, (const vec_entry_t **) state->mat1,
+                                  (const vec_entry_t **) state->mat2, state->n1, state->n2);
+                empty_im_matrix(&empty_mat, state->n1, state->n2);
+
+                cpy_state->mat1 = combined_mat;
+                cpy_state->mat2 = empty_mat;
+
+                vec_entry_t *vec_state;
+                im_state_as_vec(&vec_state, cpy_state, cpy_state->n1, cpy_state->n2);
+
+                coal_graph_node_t *found = find_similar_vertex(vec_state, im_state_length(cpy_state->n1, cpy_state->n2),
+                                                               non_iso_bst);
+
+                if (found == NULL) {
+                    DIE_ERROR(1, "Expected to find a similar vertex\n");
+                }
+
+                if (child == found) {
+                    DIE_ERROR(1, "Found vertex was the same as the child\n");
+                }
+
+                //fprintf(stderr, "Combining/adding edge to %zu from %zu\n Removing to %zu\n",
+                //        found->data.vertex_index, node->data.vertex_index, child->data.vertex_index);
+
+                graph_combine_edge((graph_node_t *) node, (graph_node_t *) found, values[i].weight);
+                graph_remove_edge((graph_node_t *) node, (graph_node_t *) child);
+                changes = true;
+                break;
+            } else {
+                _coal_graph_im_redirect_at_coals(child, coals, non_iso_bst);
+            }
+        }
+    } while (changes);
+}
+
+int coal_graph_im_redirect_at_coals(coal_graph_node_t *graph, const size_t coals, const avl_vec_node_t *non_iso_bst) {
+    coal_label_vertex_index(NULL, graph);
+    coal_graph_reset_visited(graph);
+
+    return _coal_graph_im_redirect_at_coals(graph, coals, non_iso_bst);
 }

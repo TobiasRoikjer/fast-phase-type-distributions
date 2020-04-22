@@ -44,24 +44,50 @@ int main(int argc, char **argv) {
     clock_t tot_gen = 0;
     clock_t tot_exp = 0;
 
-    for (size_t coals = 0; coals < n1 + n2; ++coals) {
+    coal_graph_node_t *no_iso_graph;
+    avl_vec_node_t *no_iso_bst;
+
+    coal_gen_im_graph_args_t args_no_iso = {
+            .n1 = n1,
+            .n2 = n2,
+            .num_iso_coal_events = 0,
+            .migration_type = back_migrations,
+            .pop_scale1 = pop_scale1,
+            .pop_scale2 = pop_scale2,
+            .mig_scale1 = mig_scale1,
+            .mig_scale2 = mig_scale2
+    };
+
+    coal_gen_im_graph(&no_iso_graph, &no_iso_bst, args_no_iso);
+
+    coal_graph_node_t *iso_graph;
+
+    coal_gen_im_graph_args_t args_iso = {
+            .n1 = n1,
+            .n2 = n2,
+            .num_iso_coal_events = n1+n2-1,
+            .migration_type = back_migrations,
+            .pop_scale1 = pop_scale1,
+            .pop_scale2 = pop_scale2,
+            .mig_scale1 = mig_scale1,
+            .mig_scale2 = mig_scale2
+    };
+
+
+    coal_gen_im_graph(&iso_graph, NULL, args_iso);
+
+    for (ssize_t coals = n1+n2-1; coals >= 0; --coals) {
         coal_graph_node_t *graph;
 
-        coal_gen_im_graph_args_t args = {
-                .n1 = n1,
-                .n2 = n2,
-                .num_iso_coal_events = coals,
-                .migration_type = back_migrations,
-                .pop_scale1 = pop_scale1,
-                .pop_scale2 = pop_scale2,
-                .mig_scale1 = mig_scale1,
-                .mig_scale2 = mig_scale2
-        };
+        if (coals == 0) {
+            graph = no_iso_graph;
+        } else {
+            graph = iso_graph;
+            start = clock();
+            coal_graph_im_redirect_at_coals(graph, (size_t) coals, no_iso_bst);
+            tot_gen += clock() - start;
+        }
 
-        // TODO: Idea: copy this graph, don't generate it all the time?
-        start = clock();
-        coal_gen_im_graph(&graph, args);
-        tot_gen += clock() - start;
         start = clock();
         coal_mph_im_expected(graph, n1, n2);
         tot_exp += clock() - start;

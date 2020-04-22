@@ -1,7 +1,7 @@
 #include "coal.h"
 
-size_t reward_i;
-size_t reward_j;
+static size_t reward_i;
+static size_t reward_j;
 
 double reward(coal_graph_node_t* node) {
     double reward = (double)((((im_state_t *) node->data.state)->mat1)[reward_i][reward_j]) +
@@ -44,7 +44,7 @@ int main(int argc, char **argv) {
     };
 
     coal_graph_node_t *start;
-    coal_gen_im_graph(&graph, args);
+    coal_gen_im_graph(&graph, NULL, args);
     coal_rewards_set(graph, reward);
     coal_reward_transform(graph, &start);
 
