@@ -372,24 +372,60 @@ void test_im_mat_utils() {
     fprintf(stderr, "\n");
     fflush(stderr);
 }
+void print_type(coal_graph_node_t *node, FILE *f) {
+    if (node->data.visited) {
+        return;
+    }
+
+    node->data.visited = true;
+
+    fprintf(f, "%zu, %zu\n", node->data.vertex_index, node->data.type);
+
+    weighted_edge_t *values = vector_get(node->edges);
+
+    for (size_t i = 0; i < vector_length(node->edges); i++) {
+        print_type((coal_graph_node_t*) values[i].node, f);
+    }
+}
 
 void test_gen_im() {
     coal_graph_node_t *graph;
     coal_gen_im_graph_args_t args = {
             .n1 = 3,
             .n2 = 3,
-            .migration_type = false,
-            .num_iso_coal_events = 4,
-            .pop_scale1 = 1.0f,
-            .pop_scale2 = 1.0f,
+            .migration_type = MIG_ALL,
+            .num_iso_coal_events = 5,
+            .pop_scale1 = 0.3f,
+            .pop_scale2 = 0.7f,
             .mig_scale1 = 1.0f,
             .mig_scale2 = 1.0f
     };
 
     coal_gen_im_graph(&graph, args);
-    coal_print_graph_list_im(stdout, graph, true, (args.n1 + 1)*(args.n2 + 1)*2+3,
-                          (args.n1+1), args.n1, args.n2);
+    //coal_print_graph_list_im(stdout, graph, true, (args.n1 + 1)*(args.n2 + 1)*2+3,
+    //                      (args.n1+1), args.n1, args.n2);
 
+    gsl_matrix_long_double *mat;
+    coal_graph_as_gsl_mat(&mat, graph, false);
+
+    FILE *f = fopen("../t.tsv","w");
+
+    for (size_t i = 0; i < mat->size1; ++i) {
+        for (size_t j = 0; j < mat->size2; ++j) {
+            fprintf(f, "%Lf ", gsl_matrix_long_double_get(mat, i, j));
+        }
+
+        fprintf(f, "\n");
+    }
+
+    fclose(f);
+
+    FILE *f2 = fopen("../t2.tsv","w");
+
+    coal_graph_reset_visited(graph);
+    print_type(graph, f2);
+
+    fclose(f2);
 }
 
 void test_gen_im_ss() {
@@ -645,7 +681,7 @@ int main(int argc, char **argv) {
     //printf("\n..\n");
     //test_im_mat_utils();
     //printf("\n..\n");
-    //test_gen_im();
+    test_gen_im();
     //printf("\n..\n");
     //test_gen_im_time();
     //printf("\n..\n");

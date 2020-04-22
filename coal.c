@@ -1515,6 +1515,7 @@ im_visit_vertex(coal_graph_node_t **out, im_state_t *state,
         im_state_as_vec(&vertex_state_vec, vertex_state, args->n1, args->n2);
 
         coal_graph_node_create(out, state_vec, vertex_state);
+        (*out)->data.type = num_coal_events;
 
         avl_vec_insert(&bst, state_vec, *out, vector_length);
 
@@ -1588,6 +1589,8 @@ im_ss_visit_vertex(coal_graph_node_t **out,
         return 0;
     } else {
         coal_graph_node_create(out, state, state);
+        size_t num_coal_events = (args->n1 + args->n2) - (npop1 + npop2);
+        (*out)->data.type = num_coal_events;
 
         avl_vec_insert(&bst, state, *out, vector_length);
 
@@ -2686,417 +2689,63 @@ void convert_mat(gsl_matrix *out, const gsl_matrix_long_double *M) {
     }
 }
 
-void convert_mat_o(gsl_matrix_long_double *out, const gsl_matrix *M) {
-    for (size_t i = 0; i < M->size1; ++i) {
-        for (size_t j = 0; j < M->size2; ++j) {
-            gsl_matrix_long_double_set(out, i, j, ((long double)gsl_matrix_get(M, i, j)));
-        }
-    }
-}
 
-void mat_mul(gsl_matrix_long_double *C, const gsl_matrix_long_double *A, const gsl_matrix_long_double *B) {
-    // New
-    /*for (size_t i = 0; i < A->size1; ++i) {
-        for (size_t j = 0; j < B->size2; ++j) {
-            long double r = 0;
-
-            for (size_t k = 0; k < A->size2; ++k) {
-                r += gsl_matrix_long_double_get(A, i, k) *
-                        gsl_matrix_long_double_get(B, k, j);
-            }
-
-            gsl_matrix_long_double_set(C, i, j, r);
-        }
+void sum_prob(long double* out, const gsl_matrix *mat_exp, coal_graph_node_t *node) {
+    if (node->data.visited) {
+        return;
     }
 
-    return;*/
-    //old
-    gsl_matrix *Ad = gsl_matrix_alloc(A->size1, A->size2);
-    gsl_matrix *Bd = gsl_matrix_alloc(B->size1, B->size2);
-    gsl_matrix *Cd = gsl_matrix_alloc(A->size1, B->size2);
+    node->data.visited = true;
 
-    
-    convert_mat(Ad, A);
-    convert_mat(Bd, B);
-
-    //fprintf(stderr, "Max %Lf, %Lf\n",gsl_matrix_long_double_max(A),
-    //        gsl_matrix_long_double_max(B));
-
-    gsl_blas_dgemm(CblasNoTrans, CblasNoTrans,
-                   1.0, Ad, Bd, 0.0, Cd);
-    
-    convert_mat_o(C, Cd);
-}
-
-void mat_combine(gsl_matrix_long_double *C, const gsl_matrix_long_double *A, const gsl_matrix_long_double *B) {
-    for (size_t i = 0; i < A->size1; ++i) {
-        for (size_t j = 0; j < A->size2; ++j) {
-            gsl_matrix_long_double_set(C, i, j, gsl_matrix_long_double_get(A, i, j));
-        }
+    if (node->data.vertex_index == 0) {
+        // Don't use the absorbing vertex
+        return;
     }
 
-    for (size_t i = 0; i < B->size1; ++i) {
-        for (size_t j = 0; j < B->size2; ++j) {
-            gsl_matrix_long_double_set(C, i+A->size1, j+A->size2, gsl_matrix_long_double_get(B, i, j));
-        }
-    }
-}
+    // Use row 0 as we always start at vertex 0
+    out[node->data.type] += gsl_matrix_get(mat_exp, 0, (size_t)node->data.vertex_index-1);
 
-#define ADJ_SUM_ITERS 100
-
-long double adj_sum(double to,
-                    gsl_matrix_long_double *A,
-                    gsl_matrix_long_double *B,
-                    gsl_matrix_long_double *C1,
-                    gsl_matrix_long_double *C2) {
-    gsl_matrix_long_double *sum;
-    gsl_matrix_long_double *At;
-    gsl_matrix_long_double *L;
-    gsl_matrix_long_double *AtmL;
-    gsl_matrix_long_double *LmAt;
-    gsl_matrix_long_double *tmpC1;
-    gsl_matrix_long_double *tmpC2;
-
-    sum = gsl_matrix_long_double_alloc(B->size1, B->size2);
-    gsl_matrix_long_double_set_zero(sum);
-
-    At = gsl_matrix_long_double_alloc(A->size1, A->size2);
-    gsl_matrix_long_double_memcpy(At, A);
-    gsl_matrix_long_double_scale(At, to);
-
-    L = gsl_matrix_long_double_alloc(B->size1, B->size2);
-    gsl_matrix_long_double_memcpy(L, B);
-
-    AtmL = gsl_matrix_long_double_alloc(At->size1, L->size2);
-    LmAt = gsl_matrix_long_double_alloc(L->size1, At->size2);
-
-    tmpC1 = gsl_matrix_long_double_alloc(C1->size1, sum->size2);
-    tmpC2 = gsl_matrix_long_double_alloc(C1->size1, C2->size2);
-
-    for (size_t k = 1; k <= ADJ_SUM_ITERS; ++k) {
-        mat_mul(AtmL, At, L);
-        mat_mul(LmAt, L, At);
-
-        gsl_matrix_long_double_memcpy(L, AtmL);
-        gsl_matrix_long_double_sub(L, LmAt);
-
-        gsl_matrix_long_double_scale(L, 1.0/((double)k+1));
-
-        gsl_matrix_long_double_add(sum, L);
+    if (isnan(out[node->data.type])) {
+        exit(1);
     }
 
-    mat_mul(tmpC1, C1, sum);
-    mat_mul(tmpC2, tmpC1, C2);
-    gsl_matrix_long_double_scale(tmpC2, to);
+    weighted_edge_t *values = vector_get(node->edges);
 
-    return gsl_matrix_long_double_get(tmpC2, 0, 0);
-}
-
-void get_mat_rowsum(gsl_matrix_long_double *row, const gsl_matrix_long_double *M) {
-    for (size_t i = 0; i < M->size1; ++i) {
-        long double sum = 0;
-
-        for (size_t j = 0; j < M->size2; ++j) {
-            sum -= gsl_matrix_long_double_get(M, i, j);
-        }
-
-        gsl_matrix_long_double_set(row, i, 0, sum);
+    for (size_t i = 0; i < vector_length(node->edges); i++) {
+        sum_prob(out, mat_exp, (coal_graph_node_t *) values[i].node);
     }
-}
-
-
-void get_first(gsl_matrix_long_double **out,
-               const size_t coals, const coal_gen_im_graph_args_t *args) {
-    coal_gen_im_pure_cutoff_graph_args_t args_c = {
-            .n1 = args->n1,
-            .n2 = args->n2,
-            .left = args->n1 + args->n2 - coals,
-            .migration_type = args->migration_type,
-            .pop_scale1 = args->pop_scale1,
-            .pop_scale2 = args->pop_scale2,
-            .mig_scale1 = args->mig_scale1,
-            .mig_scale2 = args->mig_scale2
-    };
-
-    coal_graph_node_t *graph;
-
-    coal_gen_im_pure_cutoff_graph(&graph, args_c);
-
-    coal_graph_as_gsl_mat(out, graph, false);
-}
-
-void get_next(gsl_matrix_long_double **out,
-        const size_t h1, const size_t h2,
-        const coal_gen_im_graph_args_t *args) {
-    coal_gen_im_pure_cutoff_graph_args_t args_c = {
-            .n1 = h1,
-            .n2 = h2,
-            .left = h1 + h2 - 1,
-            .migration_type = args->migration_type,
-            .pop_scale1 = args->pop_scale1,
-            .pop_scale2 = args->pop_scale2,
-            .mig_scale1 = args->mig_scale1,
-            .mig_scale2 = args->mig_scale2
-    };
-
-    coal_graph_node_t *graph;
-
-    coal_gen_im_pure_cutoff_graph(&graph, args_c);
-
-    coal_graph_as_gsl_mat(out, graph, false);
-}
-
-int get_left_prob(gsl_matrix_long_double **out, size_t *correct_index,
-                   const size_t H1, const size_t H2,
-                   const coal_gen_im_graph_args_t *args) {
-    coal_graph_node_t *graph;
-
-    coal_gen_im_cutoff_graph_args_t args_c = {
-            .n1 = args->n1,
-            .n2 = args->n2,
-            .left_n1 = H1,
-            .left_n2 = H2,
-            .migration_type = args->migration_type,
-            .pop_scale1 = args->pop_scale1,
-            .pop_scale2 = args->pop_scale2,
-            .mig_scale1 = args->mig_scale1,
-            .mig_scale2 = args->mig_scale2
-    };
-
-    coal_graph_node_t *correct;
-    coal_gen_im_prob_vertex_graph(&graph, &correct, args_c);
-
-    // We may have been given an unreachable state, return NULL then
-    if (correct == NULL) {
-        *out = NULL;
-        return 0;
-    }
-
-    weight_t **mat;
-    size_t size;
-    coal_graph_as_mat(&mat, &size, graph);
-    gsl_matrix_long_double *res = gsl_matrix_long_double_alloc(size, size);
-
-    for (size_t i = 1; i < size; ++i) {
-        weight_t rowsum = 0;
-        weight_t taken = 0;
-
-        for (size_t j = 1; j < size; ++j) {
-            if (i == j) {
-                rowsum = -mat[i][j];
-            } else {
-                taken += mat[i][j];
-            }
-        }
-
-        for (size_t j = 1; j < size; ++j) {
-            if (i == j) {
-                gsl_matrix_long_double_set(res, i - 1, j - 1, 0);
-            } else {
-                gsl_matrix_long_double_set(res, i - 1, j - 1, mat[i][j]/rowsum);
-            }
-        }
-
-        gsl_matrix_long_double_set(res, i - 1, size-1, (rowsum - taken)/rowsum);
-    }
-
-    for (size_t j = 0; j < size-1; ++j) {
-        gsl_matrix_long_double_set(res, size-1, j, 0);
-    }
-
-    gsl_matrix_long_double_set(res, size-1, size-1, 1);
-    *correct_index = (size_t) correct->data.vertex_index;
-    *out = res;
-
-    return 0;
-}
-
-
-int get_mat_prob(long double *prob, const size_t i, const size_t j, const gsl_matrix_long_double *M) {
-    gsl_matrix_long_double *Mcpy;
-
-    Mcpy = gsl_matrix_long_double_alloc(M->size1, M->size2);
-    gsl_matrix_long_double_memcpy(Mcpy, M);
-    long double sum = 0;
-
-    for (size_t k = 0; k < 200; ++k) {
-        long double inc = gsl_matrix_long_double_get(Mcpy, i, j);
-        sum += inc;
-        mat_mul(Mcpy, M, Mcpy);
-    }
-
-    *prob = sum;
-    return 0;
-}
-
-int coal_im_get_number_coals_prob(long double *out,
-        size_t coals, double isolation_time,
-        const coal_gen_im_graph_args_t *args) {
-        gsl_matrix_long_double *first;
-
-    if (coals == 0) {
-        get_first(&first, 1, args);
-        gsl_matrix_long_double *alpha = gsl_matrix_long_double_alloc(1, first->size1);
-        gsl_matrix_long_double_set_zero(alpha);
-        gsl_matrix_long_double_set(alpha, 0, 0, 1.0f);
-        gsl_matrix_long_double *e = gsl_matrix_long_double_alloc(first->size1, 1);
-        gsl_matrix_long_double_set_all(e, 1);
-
-        gsl_matrix *timeFirstD = gsl_matrix_alloc(first->size1, first->size2);
-        convert_mat(timeFirstD, first);
-        gsl_matrix_scale(timeFirstD, isolation_time);
-
-        gsl_matrix *expmD = gsl_matrix_alloc(first->size1, first->size2);
-        gsl_linalg_exponential_ss(timeFirstD, expmD, GSL_PREC_DOUBLE);
-
-        gsl_matrix_long_double *expm = gsl_matrix_long_double_alloc(first->size1, first->size2);
-        convert_mat_o(expm, expmD);
-        gsl_matrix_long_double *C1 = gsl_matrix_long_double_alloc(alpha->size1, expm->size2);
-        mat_mul(C1, alpha, expm);
-        gsl_matrix_long_double *C2 = gsl_matrix_long_double_alloc(C1->size1, e->size2);
-        mat_mul(C2, C1, e);
-
-        *out = gsl_matrix_long_double_get(C2, 0, 0);
-        return 0;
-    }
-
-    if (coals == args->n1 + args->n2 - 1) {
-        get_first(&first, coals, args);
-        gsl_matrix_long_double *alpha = gsl_matrix_long_double_alloc(1, first->size1);
-        gsl_matrix_long_double_set_zero(alpha);
-        gsl_matrix_long_double_set(alpha, 0, 0, 1.0f);
-        gsl_matrix_long_double *e = gsl_matrix_long_double_alloc(first->size1, 1);
-        gsl_matrix_long_double_set_all(e, 1);
-
-        gsl_matrix *timeFirstD = gsl_matrix_alloc(first->size1, first->size2);
-        convert_mat(timeFirstD, first);
-        gsl_matrix_scale(timeFirstD, isolation_time);
-
-        gsl_matrix *expmD = gsl_matrix_alloc(first->size1, first->size2);
-        gsl_linalg_exponential_ss(timeFirstD, expmD, GSL_PREC_DOUBLE);
-
-        gsl_matrix_long_double *expm = gsl_matrix_long_double_alloc(first->size1, first->size2);
-        convert_mat_o(expm, expmD);
-        gsl_matrix_long_double *C1 = gsl_matrix_long_double_alloc(alpha->size1, expm->size2);
-        mat_mul(C1, alpha, expm);
-        gsl_matrix_long_double *C2 = gsl_matrix_long_double_alloc(C1->size1, e->size2);
-        mat_mul(C2, C1, e);
-
-
-        *out = 1-gsl_matrix_long_double_get(C2, 0, 0);
-        return 0;
-    }
-
-    get_first(&first, coals, args);
-    long double sum = 0;
-
-    for (size_t h1 = 0; h1 <= args->n1 + args->n2 - coals; ++h1) {
-        size_t h2 = args->n1 + args->n2 - coals - h1;
-
-        gsl_matrix_long_double *m;
-        size_t correct_index;
-        get_left_prob(&m, &correct_index, h1, h2, args);
-
-        // Unreachable state
-        if (m == NULL) {
-            continue;
-        }
-
-        long double prob;
-        get_mat_prob(&prob, 0, correct_index - 1, m);
-
-        if (prob < 0.00001) {
-            continue;
-        }
-
-        gsl_matrix_long_double *other;
-        get_next(&other, h1, h2, args);
-
-        gsl_matrix_long_double *Sc = gsl_matrix_long_double_alloc(first->size1 + other->size1,
-                                                                  first->size2 + other->size2);
-        mat_combine(Sc, first, other);
-
-        gsl_matrix_long_double *sc = gsl_matrix_long_double_alloc(Sc->size1, 1);
-        get_mat_rowsum(sc, Sc);
-
-        gsl_matrix_long_double *alpha1 = gsl_matrix_long_double_alloc(1, sc->size1);
-        gsl_matrix_long_double *alpha2 = gsl_matrix_long_double_alloc(1, sc->size1);
-        gsl_matrix_long_double_set_zero(alpha1);
-        gsl_matrix_long_double_set_zero(alpha2);
-        gsl_matrix_long_double_set(alpha1, 0, 0, 1.0f);
-        gsl_matrix_long_double_set(alpha2, 0, first->size1, 1.0f);
-
-        gsl_matrix_long_double *e = gsl_matrix_long_double_alloc(sc->size1, 1);
-        gsl_matrix_long_double_set_all(e, 1);
-
-        gsl_matrix_long_double *A = gsl_matrix_long_double_alloc(Sc->size1, Sc->size2);
-        gsl_matrix_long_double_memcpy(A, Sc);
-        gsl_matrix_long_double_scale(A, -1);
-
-        gsl_matrix_long_double *B = gsl_matrix_long_double_alloc(e->size1, alpha1->size2);
-        mat_mul(B, e, alpha1);
-
-        gsl_matrix_long_double *timeSc = gsl_matrix_long_double_alloc(Sc->size1, Sc->size2);
-        gsl_matrix_long_double_memcpy(timeSc, Sc);
-        gsl_matrix_long_double_scale(timeSc, isolation_time);
-
-        gsl_matrix *timeScD = gsl_matrix_alloc(Sc->size1, Sc->size2);
-        convert_mat(timeScD, timeSc);
-
-        gsl_matrix *expmD = gsl_matrix_alloc(Sc->size1, Sc->size2);
-        gsl_linalg_exponential_ss(timeScD, expmD, GSL_PREC_DOUBLE);
-
-        gsl_matrix_long_double *expm = gsl_matrix_long_double_alloc(Sc->size1, Sc->size2);
-        convert_mat_o(expm, expmD);
-
-        gsl_matrix_long_double *C1 = gsl_matrix_long_double_alloc(alpha2->size1, expm->size2);
-        mat_mul(C1, alpha2, expm);
-
-        long double adj = adj_sum(isolation_time, A, B, C1, sc);
-        sum += adj * prob;
-    }
-
-    *out = sum;
-
-    return 0;
 }
 
 int coal_im_get_number_coals_probs(long double **out,
-        double isolation_time,
-        const coal_gen_im_graph_args_t *args) {
+                                       double isolation_time,
+                                       const coal_gen_im_graph_args_t *args) {
     size_t limit = args->n1 + args->n2 - 1;
-    *out = calloc(limit, sizeof(double));
-    for (size_t coals = 0; coals <= limit; ++coals) {
-        coal_im_get_number_coals_prob(&((*out)[coals]), coals, isolation_time, args);
-    }
+    *out = calloc(limit, sizeof(long double));
+    coal_graph_node_t *graph;
+    coal_gen_im_ss_graph(&graph, *args);
 
-    // We have a bug somewhere, TODO: Fix this
-    (*out)[1] = 0;
+    gsl_matrix_long_double *mat;
+    coal_graph_as_gsl_mat(&mat, graph, false);
+    gsl_matrix_long_double_scale(mat, isolation_time);
+    gsl_matrix *mat_exp = gsl_matrix_alloc(mat->size1, mat->size2);
+    gsl_matrix *mat2 = gsl_matrix_alloc(mat->size1, mat->size2);
+    convert_mat(mat2, mat);
+    gsl_linalg_exponential_ss(mat2, mat_exp, GSL_PREC_DOUBLE);
+
+    reset_graph_visited(graph);
+    sum_prob(*out, mat_exp, graph);
+
     long double sum = 0;
 
-    for (size_t coals = 0; coals <= limit; ++coals) {
-        if (isnan(((*out)[coals]))) {
-            ((*out)[coals]) = 0;
-        }
-
-        if ((*out)[coals] < -0.01) {
-            DIE_ERROR(1, "Probability less than 1 occurred (was %Lf)\n",
-                      (*out)[coals]);
-        }
-
-        sum += ((*out)[coals]);
+    for (size_t coals = 0; coals < limit; ++coals) {
+        sum += (*out)[coals];
     }
 
-    if (sum > 1.01) {
-        DIE_ERROR(1, "Probability sum larger than 1 occurred (was %Lf)\n",
-                  sum);
-    }
-
-    (*out)[1] = 1-sum;
+    // The last prob is the rest
+    (*out)[limit] = 1 - sum;
 
     return 0;
 }
-
 
 static int _coal_rewards_set(coal_graph_node_t *node, double(*reward_function)(coal_graph_node_t *node)) {
     if (node->data.visited) {

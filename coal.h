@@ -40,6 +40,7 @@ typedef struct {
     size_t reset_int;
     void *pointer;
     double reward;
+    size_t type;
 } coal_graph_node_data_t;
 
 typedef struct {
@@ -105,9 +106,6 @@ int coal_gen_im_cutoff_graph(coal_graph_node_t **graph, coal_gen_im_cutoff_graph
 int coal_gen_im_prob_vertex_graph(coal_graph_node_t **graph, coal_graph_node_t **correct_vertex, coal_gen_im_cutoff_graph_args_t args);
 int coal_gen_im_ss_graph(coal_graph_node_t **graph, coal_gen_im_graph_args_t args);
 
-int coal_im_get_number_coals_prob(long double *out,
-                                   size_t coals, double isolation_time,
-                                  const coal_gen_im_graph_args_t *args);
 int coal_im_get_number_coals_probs(long double **out,
                                    double isolation_time,
                                    const coal_gen_im_graph_args_t *args);
