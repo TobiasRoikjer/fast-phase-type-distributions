@@ -10,13 +10,14 @@ int main(int argc, char **argv) {
 
     fprintf(stderr, "Args:\n\tn (total):%zu\n\n", n_tot);
 
-    fprintf(stdout, "n\tmig-type\tstates\n");
+    fprintf(stdout, "n\tstate-type\tmig-type\tstates\tedges\n");
 
 
     for (size_t n = 0; n <= n_tot; ++n) {
         for (size_t mig_type = 0; mig_type <= 2; ++mig_type) {
             for (size_t sfs_type = 0; sfs_type <= 1; ++sfs_type) {
                 size_t max_states = 0;
+                size_t max_edges = 0;
 
                 for (size_t n1 = 0; n1 < n; ++n1) {
                     size_t n2 = n - n1;
@@ -47,6 +48,8 @@ int main(int argc, char **argv) {
                                 coal_gen_im_prob_vertex_graph(&graph, &correct, args);
                                 coal_label_vertex_index(&largest_index, graph);
                                 max_states = largest_index > max_states ? largest_index : max_states;
+                                size_t edges = coal_get_edges(graph);
+                                max_edges = edges > max_edges ? edges : max_edges;
                             }
                         }
                     } else {
@@ -68,6 +71,8 @@ int main(int argc, char **argv) {
                             coal_gen_im_graph(&graph, args);
                             coal_label_vertex_index(&largest_index, graph);
                             max_states = largest_index > max_states ? largest_index : max_states;
+                            size_t edges = coal_get_edges(graph);
+                            max_edges = edges > max_edges ? edges : max_edges;
                         }
                     }
                 }
@@ -89,7 +94,7 @@ int main(int argc, char **argv) {
                         break;
                 }
 
-                fprintf(stdout, "%zu\t%s\t%s\t%zu\n", n, sfs_type ? "JSFS" : "SS", mig, max_states);
+                fprintf(stdout, "%zu\t%s\t%s\t%zu\t%zu\n", n, sfs_type ? "JSFS" : "SS", mig, max_states, max_edges);
             }
         }
     }

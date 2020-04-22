@@ -2582,6 +2582,36 @@ int coal_label_vertex_index(size_t *largest_index, coal_graph_node_t *graph) {
     return 0;
 }
 
+size_t coal_get_edges(coal_graph_node_t *graph) {
+    reset_graph_visited(graph);
+    queue_t *queue;
+    queue_create(&queue, 8);
+    size_t edges = 0;
+
+    queue_enqueue(queue, graph);
+
+    while(!queue_empty(queue)) {
+        coal_graph_node_t *node = queue_dequeue(queue);
+
+        if (node->data.visited) {
+            continue;
+        }
+
+        node->data.visited = true;
+
+        edges += vector_length(node->edges);
+
+        weighted_edge_t *values = vector_get(node->edges);
+
+        for (size_t i = 0; i < vector_length(node->edges); i++) {
+            queue_enqueue(queue, values[i].node);
+        }
+    }
+
+    return edges;
+}
+
+
 static void _print_graph_list_im(FILE *stream, coal_graph_node_t *node,
                                  bool indexed,
                                  size_t vec_length, size_t vec_spacing, size_t n1, size_t n2) {

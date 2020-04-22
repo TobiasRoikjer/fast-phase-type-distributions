@@ -5,7 +5,7 @@
 
 int main(int argc, char **argv) {
     if (argc != 9) {
-        fprintf(stderr, "Expected 10 arguments got %i\n", argc-1);
+        fprintf(stderr, "Expected 8 arguments got %i\n", argc-1);
         exit(1);
     }
 

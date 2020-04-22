@@ -118,6 +118,7 @@ long double coal_mph_cov(coal_graph_node_t *graph,
                     size_t reward_index_1,
                     size_t reward_index_2);
 int coal_label_vertex_index(size_t *largest_index, coal_graph_node_t *graph);
+size_t coal_get_edges(coal_graph_node_t *graph);
 void coal_graph_reset(coal_graph_node_t *graph);
 void coal_graph_reset_visited(coal_graph_node_t *graph);
 
