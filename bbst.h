@@ -22,6 +22,23 @@ typedef struct avl_mat_node {
     mat_entry_t entry;
 } avl_mat_node_t;
 
+
+typedef struct avl_double_node {
+    struct avl_double_node *left;
+    struct avl_double_node *right;
+    struct avl_double_node *parent;
+    signed short balance;
+    long double key;
+    void * entry;
+} avl_double_node_t;
+
+int avl_double_node_create(avl_double_node_t **node, long double key, void *entry, avl_double_node_t *parent);
+void avl_double_node_destroy(avl_double_node_t *node);
+avl_double_node_t * avl_double_find(const avl_double_node_t *rootptr, const long double key, const long double epsilon);
+int find_or_insert_double(avl_double_node_t **out, avl_double_node_t *rootptr, const long double key, void *entry, const long double epsilon);
+int avl_double_insert(avl_double_node_t **root, const long double key, void *entry, const long double epsilon);
+static size_t avl_double_get_size(const avl_double_node_t *node);
+
 typedef struct avl_flat_tuple {
     mat_key_t key;
     mat_entry_t entry;
@@ -49,5 +66,7 @@ int avl_vec_node_create(avl_vec_node_t **node, vec_entry_t *key, void *entry, av
 void avl_vec_node_destroy(avl_vec_node_t *node);
 int avl_vec_insert(avl_vec_node_t **root, vec_entry_t *key, void *entry, size_t vec_length);
 avl_vec_node_t * avl_vec_find(const avl_vec_node_t *rootptr, const vec_entry_t *key, size_t vec_length);
+
+
 
 #endif // AMAZEPHASE_BSST_H

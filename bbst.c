@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <string.h>
+#include <math.h>
 
 int avl_node_create(avl_mat_node_t **node, mat_key_t key, mat_entry_t entry, avl_mat_node_t *parent) {
     if ((*node = (avl_mat_node_t*) malloc(sizeof(avl_mat_node_t))) == NULL) {
@@ -429,13 +430,6 @@ void avl_print(avl_mat_node_t *rootptr) {
     avl_print_impl(rootptr, 0);
 }
 
-avl_flat_tuple_t *avl_bs_flat(avl_flat_tuple_t **values, mat_key_t key) {
-    size_t low = 0;
-    size_t high = 0;
-
-}
-
-
 static inline int radix_cmp(const vec_entry_t* a, const vec_entry_t* b,
         const size_t vec_length) {
     return (memcmp(a, b, sizeof(vec_entry_t) * vec_length));
@@ -622,4 +616,201 @@ static size_t avl_vec_get_size(avl_vec_node_t *node) {
     }
 
     return 1 + avl_vec_get_size(node->left) + avl_vec_get_size(node->right);
+}
+
+static inline int double_cmp(const long double a, const long double b, const long double epsilon) {
+    long double diff = fabsl(a-b);
+
+    if (diff <= epsilon) {
+        return 0;
+    } else {
+        if (a < b) {
+            return -1;
+        } else {
+            return 1;
+        }
+    }
+}
+
+int avl_double_node_create(avl_double_node_t **node, long double key, void *entry, avl_double_node_t *parent) {
+    if ((*node = (avl_double_node_t*) malloc(sizeof(avl_double_node_t))) == NULL) {
+        return 1;
+    }
+
+    (*node)->key = key;
+    (*node)->entry = entry;
+    (*node)->left = NULL;
+    (*node)->right = NULL;
+    (*node)->parent = parent;
+    (*node)->balance = 0;
+
+    return 0;
+}
+
+void avl_double_node_destroy(avl_double_node_t *node) {
+    if (node == NULL) {
+        return;
+    }
+
+    avl_double_node_destroy(node->left);
+    avl_double_node_destroy(node->right);
+
+    free(node);
+}
+
+avl_double_node_t * avl_double_find(const avl_double_node_t *rootptr, const long double key, const long double epsilon) {
+    if (rootptr == NULL) {
+        return NULL;
+    }
+
+    avl_double_node_t *node = (avl_double_node_t *) rootptr;
+
+    while (1) {
+        int res = double_cmp(key, node->key, epsilon);
+        if (res < 0) {
+            if (node->left == NULL) {
+                return NULL;
+            } else {
+                node = node->left;
+            }
+        } else if (res > 0) {
+            if (node->right == NULL) {
+                return NULL;
+            } else {
+                node = node->right;
+            }
+        } else {
+            return node;
+        }
+    }
+}
+
+int find_or_insert_double(avl_double_node_t **out, avl_double_node_t *rootptr, const long double key, void *entry, const long double epsilon) {
+    if (avl_double_node_create(out, key, entry, NULL)) {
+        return -1;
+    }
+
+    if (rootptr == NULL) {
+        return 1;
+    }
+
+    avl_double_node_t *node = rootptr;
+
+    while(1) {
+        int res = double_cmp(key, node->key, epsilon);
+        if (res < 0) {
+            if (node->left == NULL) {
+                node->left = *out;
+                break;
+            } else {
+                node = node->left;
+            }
+        } else if (res > 0) {
+            if (node->right == NULL) {
+                node->right = *out;
+                break;
+            } else {
+                node = node->right;
+            }
+        } else {
+            *out = node;
+        }
+    }
+
+    (*out)->parent = node;
+
+    return 0;
+}
+
+int avl_double_insert(avl_double_node_t **root, const long double key, void *entry, const long double epsilon) {
+    avl_double_node_t *child;
+
+    if (*root == NULL) {
+        if (avl_double_node_create(root, key, entry, NULL)) {
+            return 1;
+        }
+
+        return 0;
+    }
+
+    int res = find_or_insert_double(&child, *root, key, entry, epsilon);
+
+    if (res == -1) {
+        return 1;
+    }
+
+    if (res == 0) {
+        return 0;
+    }
+
+    avl_double_node_t *pivot, *rotated_parent;
+
+    for (avl_double_node_t *parent = child->parent; parent != NULL; parent = child->parent) {
+        if (child == parent->right) {
+            if (parent->balance > 0) {
+                pivot = parent->parent;
+
+                if (child->balance < 0) {
+                    rotated_parent = (avl_double_node_t *) rotate_right_left((avl_node_t *) parent, (avl_node_t *) child);
+                } else {
+                    rotated_parent = (avl_double_node_t *) rotate_left((avl_node_t *) parent, (avl_node_t *) child);
+                }
+            } else {
+                if (parent->balance < 0) {
+                    parent->balance = 0;
+
+                    return 0;
+                }
+
+                parent->balance = 1;
+                child = parent;
+
+                continue;
+            }
+        } else {
+            if (parent->balance < 0) {
+                pivot = parent->parent;
+
+                if (child->balance > 0) {
+                    rotated_parent = (avl_double_node_t *) rotate_left_right((avl_node_t *) parent, (avl_node_t *) child);
+                } else {
+                    rotated_parent = (avl_double_node_t *) rotate_right((avl_node_t *) parent, (avl_node_t *) child);
+                }
+            } else {
+                if (parent->balance > 0) {
+                    parent->balance = 0;
+
+                    return 0;
+                }
+
+                parent->balance = -1;
+                child = parent;
+                continue;
+            }
+        }
+
+        rotated_parent->parent = pivot;
+
+        if (pivot != NULL) {
+            if (parent == pivot->left) {
+                pivot->left = rotated_parent;
+            } else {
+                pivot->right = rotated_parent;
+            }
+
+            return 0;
+        } else {
+            *root = rotated_parent;
+        }
+    }
+
+    return 0;
+}
+
+static size_t avl_double_get_size(const avl_double_node_t *node) {
+    if (node == NULL) {
+        return 0;
+    }
+
+    return 1 + avl_double_get_size(node->left) + avl_double_get_size(node->right);
 }
