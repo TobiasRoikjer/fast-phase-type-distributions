@@ -43,11 +43,11 @@ static void test_sampling_constants_slow() {
     pdf_constant_t *constants;
 
     size_t size;
-    size_t n = 4;
+    size_t n = 5;
     coal_graph_node_t *graph;
     coal_gen_kingman_graph(&graph, n);
 
-    sampling_graph_pfd_constants(&constants, &size, graph, 4);
+    sampling_graph_pfd_constants(&constants, &size, graph, 5);
 
     pdf_constant_t *p = constants;
 
@@ -64,17 +64,17 @@ static void test_sampling_constants_slow2() {
     pdf_constant_t *constants;
 
     size_t size;
-    size_t n = 10;
+    size_t n = 5;
     coal_graph_node_t *graph;
     coal_gen_kingman_graph(&graph, n);
 
-    sampling_graph_pfd_constants(&constants, &size, graph, 4);
+    sampling_graph_pfd_constants(&constants, &size, graph, 5);
 
     pdf_constant_t *p = constants;
 
     for (size_t i = 0; i < size; ++i) {
         for (size_t j = 0; j < 4; ++j) {
-            if (j == 2) {
+            if (j == 1) {
                 printf("%Lf,%Lf\n", p->constant, p->rate);
             }
             p++;
@@ -87,7 +87,7 @@ static void test_sampling_constants_fast() {
     pdf_constant_t *constants;
 
     size_t size;
-    size_t n = 10;
+    size_t n = 4;
     coal_graph_node_t *graph;
     coal_gen_kingman_graph(&graph, n);
 
@@ -130,6 +130,10 @@ double reward_sing(coal_graph_node_t *node) {
     return node->data.state_vec[1];
 }
 
+double reward_singinc(coal_graph_node_t *node) {
+    return node->data.state_vec[1]+0.001;
+}
+
 double reward_length(coal_graph_node_t *node) {
     size_t lineages = 0;
 
@@ -140,44 +144,35 @@ double reward_length(coal_graph_node_t *node) {
     return lineages;
 }
 
+double reward_one(coal_graph_node_t *node) {
+    return 1;
+}
+
+double reward_two(coal_graph_node_t *node) {
+    return 2;
+}
+
 void test_rw_cdf() {
     pdf_constant_t *constants;
-    n = 5;
-    coal_graph_node_t *graph;
-    coal_gen_kingman_graph(&graph, n);
-    coal_label_vertex_index(NULL, graph);
-    coal_rewards_set(graph, reward_sing);
-    graph->data.reward = 0;
-
-    weight_t **mat;
-    size_t size;
-    coal_graph_as_mat(&mat, &size, graph);
-
-    fprintf(stdout, "\n\n====================\n\n\n");
-    coal_graph_node_t *start;
-    coal_reward_transform(graph, &start);
-
-    coal_graph_as_mat(&mat, &size, start);
-
-    long double cdf;
-    gsl_matrix *S;
-    coal_get_as_mat(&S,start);
-    coal_get_mat_cdf(&cdf, 0.5, S, start);
-
-    fprintf(stdout, "CDF 0.5: %Lf\n", cdf);
-
+    n = 8;
 
     coal_graph_node_t *graph2;
+    coal_graph_node_t *graph2s;
     coal_gen_kingman_graph(&graph2, n);
     coal_label_vertex_index(NULL, graph2);
     coal_rewards_set(graph2, reward_sing);
     graph2->data.reward = 0;
+    coal_reward_transform(graph2, &graph2s);
+    coal_rewards_set(graph2s, reward_one);
+    graph2s->data.reward = 0;
     size_t constants_size;
-    sampling_graph_pfd_constants_rec_rw(&constants, &constants_size, graph2, n);
-
-    FILE *f = fopen("consts.tsv","w");
+    //coal_graph_node_t *first = (coal_graph_node_t *) ((weighted_edge_t*)vector_get(graph2s->edges))[0].node;
+    sampling_graph_pfd_constants_rec_rw(&constants, &constants_size, graph2s);
+fflush(stderr);
+    FILE *f = fopen("/mnt/c/Users/Tobias/Documents/school/speciale/data/consts.tsv","w");
     for (size_t i = 0; i < constants_size; ++i) {
         fprintf(f, "%Lf %Lf\n", constants[i].constant, constants[i].rate);
+        fprintf(stdout, "%Lf %Lf\n", constants[i].constant, constants[i].rate);
     }
 
     fclose(f);
@@ -192,7 +187,41 @@ void test_rw_cdf() {
             constsum += constants[i].constant;
         }
 
-        fprintf(stdout, "CDF %f: %Lf %Lf (%Lf %Lf)\n", t, res + (1 - constsum), respdf, res, 1 - constsum);
+        fprintf(stdout, "CDF %f: %Lf %Lf (%Lf)\n", t, res, respdf, 1 - constsum);
+    }
+}
+
+void test_rw_cdf2() {
+    pdf_constant_t *constants;
+    n = 8;
+
+    coal_graph_node_t *graph2;
+    coal_gen_kingman_graph(&graph2, n);
+    coal_label_vertex_index(NULL, graph2);
+    coal_rewards_set(graph2, reward_singinc);
+    graph2->data.reward = 0;
+    size_t constants_size;
+    sampling_graph_pfd_constants_rec_rw(&constants, &constants_size, graph2);
+    fflush(stderr);
+    FILE *f = fopen("/mnt/c/Users/Tobias/Documents/school/speciale/data/consts.tsv","w");
+    for (size_t i = 0; i < constants_size; ++i) {
+        fprintf(f, "%Lf %Lf\n", constants[i].constant, constants[i].rate);
+        fprintf(stdout, "%Lf %Lf\n", constants[i].constant, constants[i].rate);
+    }
+
+    fclose(f);
+
+    for (double t = 0; t < 1; t+=0.1f) {
+        long double res = 0;
+        long double respdf = 0;
+        long double constsum = 0;
+        for (size_t i = 0; i < constants_size; ++i) {
+            res += constants[i].constant * (1 - expl(-constants[i].rate * t));
+            respdf += constants[i].constant *constants[i].rate* expl(-constants[i].rate * t);
+            constsum += constants[i].constant;
+        }
+
+        fprintf(stdout, "CDF %f: %Lf %Lf (%Lf)\n", t, res, respdf, 1 - constsum);
     }
 }
 
@@ -207,6 +236,8 @@ int main(int argc, char **argv) {
         testcdffast((double)i*0.1f);
     }*/
     test_rw_cdf();
+    test_rw_cdf2();
+    //test_sampling_constants_slow();
 
     return 0;
 }

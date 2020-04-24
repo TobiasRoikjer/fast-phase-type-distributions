@@ -53,8 +53,8 @@ void print_array(sampling_number_t *array, size_t len) {
     fprintf(stderr, "\n");
 }
 
-#define EPSILON FLT_EPSILON
-#define REWARD_INCREASE 0.0000001f;
+#define EPSILON FLT_EPSILON*100
+#define REWARD_INCREASE 0.01f;
 
 int _sampling_graph_pfd_constants(pdf_constant_t **out, coal_graph_node_t *graph, size_t reward_size,
         vector_t *path, vector_t *path_rates, sampling_number_t prob) {
@@ -367,7 +367,6 @@ int _sampling_graph_pfd_constants_rec_rw(sampling_number_t **k_out,
                                       sampling_number_t *reward_rates,
                                       coal_graph_node_t *vertex,
                                       size_t n_vertices,
-                                      size_t vector_len,
                                       sampling_number_t **vertices_k) {
     if (!vertex->data.visited) {
         DIE_ERROR(1, "Should be visited is not \n");
@@ -377,10 +376,13 @@ int _sampling_graph_pfd_constants_rec_rw(sampling_number_t **k_out,
         *k_out = vertices_k[vertex->data.vertex_index];
         return 0;
     } else {
-        *k_out = calloc(n_vertices, sizeof(sampling_number_t));
+        //fprintf(stderr, "NODE: %zu\n",
+        //        vertex->data.vertex_index);
+            *k_out = calloc(n_vertices, sizeof(sampling_number_t));
         sampling_number_t rate = get_direct_rate(vertex);
 
         if (vector_length(vertex->edges) == 0) {
+            vertices_k[vertex->data.vertex_index] = *k_out;
             return 0;
         } else if (vertex->data.reward == 0) {
             weighted_edge_t *values = vector_get(vertex->edges);
@@ -390,12 +392,12 @@ int _sampling_graph_pfd_constants_rec_rw(sampling_number_t **k_out,
                 sampling_number_t *k_child;
                 _sampling_graph_pfd_constants_rec_rw(&k_child, reward_rates,
                                                   child, n_vertices,
-                                                  vector_len, vertices_k);
+                                                  vertices_k);
 
-                sampling_number_t scale = values[i].weight / rate;
+                sampling_number_t prob = values[i].weight / rate;
 
                 for (size_t j = 0; j < n_vertices; ++j) {
-                    (*k_out)[j] += k_child[j] * scale;
+                    (*k_out)[j] += k_child[j] * prob;
                 }
             }
 
@@ -405,22 +407,29 @@ int _sampling_graph_pfd_constants_rec_rw(sampling_number_t **k_out,
         } else {
             weighted_edge_t *values = vector_get(vertex->edges);
 
+            //fprintf(stderr,"C (%zu): I have %zu edges\n",
+            //        vertex->data.vertex_index, vector_length(vertex->edges));
             for (size_t i = 0; i < vector_length(vertex->edges); i++) {
                 coal_graph_node_t *child = (coal_graph_node_t *) values[i].node;
-                sampling_number_t scale = values[i].weight / rate;
+                sampling_number_t prob = values[i].weight / rate;
+
+                //fprintf(stderr,"C (%zu): For the edge to child %zu:\n",
+                //        vertex->data.vertex_index, child->data.vertex_index);
 
                 for (size_t j = 0; j < n_vertices; ++j) {
                     sampling_number_t *k_child;
                     _sampling_graph_pfd_constants_rec_rw(&k_child, reward_rates,
-                                                      (coal_graph_node_t *) values[i].node, n_vertices,
-                                                      vector_len, vertices_k);
+                                                      child, n_vertices,
+                                                      vertices_k);
+                    //fprintf(stderr,"C (%zu): Considering vertex %zu has k %Lf\n",
+                    //        vertex->data.vertex_index, j, k_child[j]);
                     if (fabsl(k_child[j]) <= EPSILON) {
                         continue;
                     }
 
-                    //fprintf(stderr, "C: Adding to %zu, += %Lf * %Lf * %Lf\n",
-                    //        j, scale, k_child[j], reward_scaled_diff((size_t)vertex->data.vertex_index, j, reward_rates));
-                    (*k_out)[j] += scale * k_child[j] *
+                    //fprintf(stderr, "C (%zu): Adding to %zu, += %Lf * %Lf * %Lf\n",
+                    //        vertex->data.vertex_index,j, prob, k_child[j], reward_scaled_diff((size_t)vertex->data.vertex_index, j, reward_rates));
+                    (*k_out)[j] += prob * k_child[j] *
                                    reward_scaled_diff((size_t)vertex->data.vertex_index, j, reward_rates);
                 }
             }
@@ -433,7 +442,7 @@ int _sampling_graph_pfd_constants_rec_rw(sampling_number_t **k_out,
                 sampling_number_t *k_child;
                 _sampling_graph_pfd_constants_rec_rw(&k_child, reward_rates,
                                                   (coal_graph_node_t *) values[i].node, n_vertices,
-                                                  vector_len, vertices_k);
+                                                  vertices_k);
                 if (zero_constants(k_child, (size_t)(child->data.vertex_index)+1)) {
                     (*k_out)[vertex->data.vertex_index] += values[i].weight / rate;
                 } else {
@@ -468,6 +477,9 @@ int _sampling_graph_pfd_constants_rec_rw(sampling_number_t **k_out,
 int dir = 1;
 
 long double get_reward_rate_unique(coal_graph_node_t *node, avl_double_node_t **bst) {
+    //fprintf(stderr, "The node %zu  has a direct rate of %Lf and a reward of %f\n",
+    //        node->data.vertex_index, get_direct_rate(node), node->data.reward);
+
     if (node->data.reward == 0) {
         return INFINITY;
     }
@@ -488,18 +500,18 @@ long double get_reward_rate_unique(coal_graph_node_t *node, avl_double_node_t **
 }
 
 int sampling_graph_pfd_constants_rec_rw(pdf_constant_t **out, size_t *out_size,
-                                     coal_graph_node_t *graph, size_t vector_len) {
-    size_t size;
-    coal_label_vertex_index(&size, graph);
-    size++;
+                                     coal_graph_node_t *graph) {
+    size_t max;
+    coal_label_vertex_index(&max, graph);
+    size_t length = max+1;
     coal_graph_reset_visited(graph);
 
-    sampling_number_t *reward_rates = calloc(size, sizeof(sampling_number_t));
+    sampling_number_t *reward_rates = calloc(length, sizeof(sampling_number_t));
 
     queue_t *queue;
     queue_create(&queue, 8);
     queue_enqueue(queue, graph);
-    size_t index = size - 1;
+    size_t index = length - 1;
     avl_double_node_t *bst = NULL;
 
     while(!queue_empty(queue)) {
@@ -513,6 +525,7 @@ int sampling_graph_pfd_constants_rec_rw(pdf_constant_t **out, size_t *out_size,
         index--;
 
         reward_rates[node->data.vertex_index] = get_reward_rate_unique(node, &bst);
+        //fprintf(stderr, "assigned %Lf to %zu\n", reward_rates[node->data.vertex_index], node->data.vertex_index);
         dir = dir * -1;
 
         weighted_edge_t *values = vector_get(node->edges);
@@ -524,20 +537,17 @@ int sampling_graph_pfd_constants_rec_rw(pdf_constant_t **out, size_t *out_size,
         }
     }
 
-    vec_entry_t *empty_vec = calloc(vector_len, sizeof(vec_entry_t));
-    empty_vec[0] = (vec_entry_t) -1;
-
     sampling_number_t *k_out;
-    sampling_number_t **vertices_k = calloc(size, sizeof(sampling_number_t*));
+    sampling_number_t **vertices_k = calloc(length, sizeof(sampling_number_t*));
 
     _sampling_graph_pfd_constants_rec_rw(&k_out,
-                                      reward_rates, graph, size,
-                                      vector_len, vertices_k);
+                                      reward_rates, graph, length,
+                                      vertices_k);
 
-    *out = calloc(size, sizeof(pdf_constant_t));
+    *out = calloc(length, sizeof(pdf_constant_t));
 
     size_t count = 0;
-    for (size_t j = 0; j < size; ++j) {
+    for (size_t j = 0; j < length; ++j) {
         if (!isinf(reward_rates[j]) && !isnan(reward_rates[j])) {
             (*out)[count].rate = reward_rates[j];
             (*out)[count].constant = k_out[j];

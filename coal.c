@@ -851,7 +851,7 @@ int coal_graph_as_gsl_mat(gsl_matrix_long_double **weights, coal_graph_node_t *g
         size--;
     }
 
-    *weights = gsl_matrix_long_double_alloc(size, size);
+    *weights = gsl_matrix_long_double_calloc(size, size);
 
     insert_into_gsl_weight_mat(*weights, graph, include_absorbing);
 
@@ -921,7 +921,7 @@ int coal_graph_as_gsl_mat_double(gsl_matrix **weights, coal_graph_node_t *graph,
         size--;
     }
 
-    *weights = gsl_matrix_alloc(size, size);
+    *weights = gsl_matrix_calloc(size, size);
 
     insert_into_gsl_weight_mat_double(*weights, graph, include_absorbing);
 
@@ -2906,7 +2906,7 @@ int coal_get_mat_cdf(long double *out,
     gsl_matrix_memcpy(Sscaled, S);
     gsl_matrix_scale(Sscaled, t);
 
-    gsl_matrix *mat_exp = gsl_matrix_alloc(S->size1, S->size2);
+    gsl_matrix *mat_exp = gsl_matrix_calloc(S->size1, S->size2);
     gsl_linalg_exponential_ss(Sscaled, mat_exp, GSL_PREC_DOUBLE);
 
     gsl_matrix *mat_mul_alpha = gsl_matrix_alloc(1, mat_exp->size2);
@@ -2915,7 +2915,7 @@ int coal_get_mat_cdf(long double *out,
     gsl_matrix *mat_mul_e = gsl_matrix_alloc(1, 1);
     gsl_blas_dgemm(CblasNoTrans, CblasNoTrans, 1.0, mat_mul_alpha, e, 0, mat_mul_e);
 
-    *out = gsl_matrix_get(mat_mul_e, 0, 0);
+    *out = 1-gsl_matrix_get(mat_mul_e, 0, 0);
     gsl_matrix_free(mat_mul_e);
     gsl_matrix_free(mat_mul_alpha);
     gsl_matrix_free(mat_exp);

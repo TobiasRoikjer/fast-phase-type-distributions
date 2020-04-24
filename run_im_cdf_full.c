@@ -1,6 +1,8 @@
 #include "coal.h"
+#include "sampling.h"
 #include <string.h>
 #include <time.h>
+#include <math.h>
 
 size_t reward_i;
 size_t reward_j;
@@ -32,6 +34,45 @@ double reward(coal_graph_node_t* node) {
 
 clock_t total_conv = 0;
 
+double reward_one(coal_graph_node_t *node) {
+    return 1;
+}
+
+
+void print_cdf_graph(FILE *out, coal_graph_node_t *start) {
+    coal_rewards_set(start,reward_one);
+    start->data.reward = 0;
+
+    pdf_constant_t *constants;
+    size_t size;
+
+    sampling_graph_pfd_constants_rec_rw(&constants, &size, start);
+    long double const_sum = 0;
+    for (size_t i = 0; i < size; ++i) {
+        const_sum += constants[i].constant;
+        fprintf(stderr, "Adding %Lf, sum is now %Lf\n", constants[i].constant, const_sum);
+    }
+
+    for (double t = 0; t <= 30; t += 0.5) {
+        fprintf(out, "%f ", t);
+    }
+
+    fprintf(out, "\n");
+
+    for (double t = 0; t <= 30; t += 0.5) {
+        sampling_number_t cdf = 0;
+
+        for (size_t i = 0; i < size; ++i) {
+            cdf += constants[i].constant * (1 - expl(-constants[i].rate * t));
+        }
+
+        fprintf(out, "%Lf ", cdf);
+    }
+
+    fprintf(out, "\n");
+}
+
+
 void print_cdf_mat(FILE *out, coal_graph_node_t *start) {
     long double res;
     gsl_matrix *S;
@@ -45,7 +86,7 @@ void print_cdf_mat(FILE *out, coal_graph_node_t *start) {
 
     for (double t = 0; t <= 30; t += 0.5) {
         coal_get_mat_cdf(&res, t, S, start);
-        fprintf(out, "%Lf ", 1-res);
+        fprintf(out, "%Lf ", res);
     }
 
     free(S);
@@ -77,8 +118,8 @@ int main(int argc, char **argv) {
     clock_t tot_rw = 0;
     clock_t tot_write = 0;
 
-    fprintf(stderr, "Args:\n\tfilename: %s\n\tM: %i,\n\tnu_p1: %Lf, nu_p2: %Lf,\n\tnu_m1: %Lf, nu_m2: %Lf,\n\tss_only: %i\n\n",
-            filename, back_migrations, pop_scale1, pop_scale2, mig_scale1, mig_scale2, ss_only);
+    fprintf(stderr, "Args:\n\tfilename: %s\n\tn1: %zu n2: %zu\n\tM: %i,\n\tnu_p1: %Lf, nu_p2: %Lf,\n\tnu_m1: %Lf, nu_m2: %Lf,\n\tss_only: %i\n\n",
+            filename, n1, n2, back_migrations, pop_scale1, pop_scale2, mig_scale1, mig_scale2, ss_only);
 
     coal_graph_node_t *no_iso_graph;
     avl_vec_node_t *no_iso_bst;
@@ -150,7 +191,7 @@ int main(int argc, char **argv) {
                     coal_reward_transform(graph, &start_node);
                     tot_rw += clock() - start;
                     start = clock();
-                    print_cdf_mat(f, start_node);
+                    print_cdf_graph(f, start_node);
                     tot_write += clock() - start;
                     fclose(f);
                 }
@@ -188,7 +229,7 @@ int main(int argc, char **argv) {
         coal_reward_transform(graphss, &start_nodess);
         tot_rw += clock() - start;
         start = clock();
-        print_cdf_mat(f, start_nodess);
+        print_cdf_graph(f, start_nodess);
         tot_write += clock() - start;
         fclose(f);
     }
