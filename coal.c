@@ -858,6 +858,75 @@ int coal_graph_as_gsl_mat(gsl_matrix_long_double **weights, coal_graph_node_t *g
     return 0;
 }
 
+void insert_into_gsl_weight_mat_double(gsl_matrix *weights,
+                                coal_graph_node_t *node,
+                                bool include_absorbing) {
+    if (node->data.visited) {
+        return;
+    }
+
+    node->data.visited = true;
+
+    weighted_edge_t *values = vector_get(node->edges);
+    weight_t weight = 0;
+    size_t node_index = (size_t) node->data.vertex_index;
+
+    if (!include_absorbing) {
+        if (node_index == 0) {
+            return;
+        }
+
+        node_index--;
+    }
+
+    for (size_t i = 0; i < vector_length(node->edges); i++) {
+        weight += values[i].weight;
+        coal_graph_node_t *child = (coal_graph_node_t *) values[i].node;
+
+        size_t child_index = (size_t) child->data.vertex_index;
+
+        if (!include_absorbing) {
+            if (child_index == 0) {
+                continue;
+            }
+
+            child_index--;
+        }
+
+        gsl_matrix_set(weights,
+                                   (const size_t) node_index,
+                                   (const size_t) child_index,
+                       (const double) values[i].weight);
+    }
+
+    gsl_matrix_set(weights,
+                               (const size_t) node_index,
+                               (const size_t) node_index,
+                   (const double) -weight);
+
+    for (size_t i = 0; i < vector_length(node->edges); i++) {
+        coal_graph_node_t *child = (coal_graph_node_t *) values[i].node;
+
+        insert_into_gsl_weight_mat_double(weights, child, include_absorbing);
+    }
+}
+
+int coal_graph_as_gsl_mat_double(gsl_matrix **weights, coal_graph_node_t *graph, bool include_absorbing) {
+    size_t largest_index;
+    coal_label_vertex_index(&largest_index, graph);
+    reset_graph_visited(graph);
+    size_t size = largest_index+1;
+
+    if (!include_absorbing) {
+        size--;
+    }
+
+    *weights = gsl_matrix_alloc(size, size);
+
+    insert_into_gsl_weight_mat_double(*weights, graph, include_absorbing);
+
+    return 0;
+}
 
 int coal_graph_as_phdist_rw(phdist_t **phdist, coal_graph_node_t *graph) {
     queue_t *queue;
@@ -1592,6 +1661,17 @@ im_ss_visit_vertex(coal_graph_node_t **out,
     }
     state[2] = (vec_entry_t) mig1to2;
     state[3] = (vec_entry_t) mig2to1;
+
+    size_t num_coal_events = (args->n1 + args->n2) - (npop1 + npop2);
+
+    if (num_coal_events >= args->num_iso_coal_events) {
+        npop1 += npop2;
+        npop2 = 0;
+
+        state[2] = (vec_entry_t) true;
+        state[3] = (vec_entry_t) true;
+    }
+
     avl_vec_node_t *bst_node = avl_vec_find(bst, state, vector_length);
 
     if (bst_node != NULL) {
@@ -1599,7 +1679,7 @@ im_ss_visit_vertex(coal_graph_node_t **out,
         return 0;
     } else {
         coal_graph_node_create(out, state, state);
-        size_t num_coal_events = (args->n1 + args->n2) - (npop1 + npop2);
+
         (*out)->data.coals = num_coal_events;
 
         avl_vec_insert(&bst, state, *out, vector_length);
@@ -1642,73 +1722,75 @@ im_ss_visit_vertex(coal_graph_node_t **out,
             }
         }
 
-        if (npop1 + npop2 > 1) {
-            // Mig events
-            if (mig1to2 && npop1 > 0 &&
-                (args->migration_type != MIG_ONCE ||
-                    !(npop1 == 2 && npop2 == 0))) {
-                coal_param_real_t scale = args->pop_scale1 * args->mig_scale1;
+        if (num_coal_events < args->num_iso_coal_events) {
+            if (npop1 + npop2 > 1) {
+                // Mig events
+                if (mig1to2 && npop1 > 0 &&
+                    (args->migration_type != MIG_ONCE ||
+                     !(npop1 == 2 && npop2 == 0))) {
+                    coal_param_real_t scale = args->pop_scale1 * args->mig_scale1;
 
-                if (scale >= LDBL_EPSILON) {
-                    weight_t rate = scale * npop1;
+                    if (scale >= LDBL_EPSILON) {
+                        weight_t rate = scale * npop1;
 
-                    switch (args->migration_type) {
-                        case MIG_DIR:
-                            new_mig1to2 = true;
-                            new_mig2to1 = false;
-                            break;
-                        case MIG_ALL:
-                            new_mig1to2 = true;
-                            new_mig2to1 = true;
-                            break;
-                        case MIG_ONCE:
-                            new_mig1to2 = false;
-                            new_mig2to1 = false;
-                            break;
-                        default:
-                            DIE_ERROR(1, "Illegal mig param, was %zu\n", (size_t)args->migration_type);
-                            break;
+                        switch (args->migration_type) {
+                            case MIG_DIR:
+                                new_mig1to2 = true;
+                                new_mig2to1 = false;
+                                break;
+                            case MIG_ALL:
+                                new_mig1to2 = true;
+                                new_mig2to1 = true;
+                                break;
+                            case MIG_ONCE:
+                                new_mig1to2 = false;
+                                new_mig2to1 = false;
+                                break;
+                            default:
+                                DIE_ERROR(1, "Illegal mig param, was %zu\n", (size_t) args->migration_type);
+                                break;
+                        }
+
+                        coal_graph_node_t *to;
+                        im_ss_visit_vertex(&to, bst,
+                                           npop1 - 1, npop2 + 1,
+                                           new_mig1to2, new_mig2to1, args);
+                        graph_add_edge((graph_node_t *) *out, (graph_node_t *) to, rate);
                     }
-
-                    coal_graph_node_t *to;
-                    im_ss_visit_vertex(&to, bst,
-                                       npop1 - 1, npop2 + 1,
-                                       new_mig1to2, new_mig2to1, args);
-                    graph_add_edge((graph_node_t *) *out, (graph_node_t *) to, rate);
                 }
-            }
 
-            if (mig2to1 && npop2 > 0 &&
-                           (args->migration_type != MIG_ONCE ||
-                            !(npop2 == 2 && npop1 == 0))) {
-                coal_param_real_t scale = args->pop_scale2 *  args->mig_scale2;
+                if (mig2to1 && npop2 > 0 &&
+                    (args->migration_type != MIG_ONCE ||
+                     !(npop2 == 2 && npop1 == 0))) {
+                    coal_param_real_t scale = args->pop_scale2 * args->mig_scale2;
 
-                if (scale >= LDBL_EPSILON) {
-                    weight_t rate = scale * npop2;
+                    if (scale >= LDBL_EPSILON) {
+                        weight_t rate = scale * npop2;
 
-                    switch (args->migration_type) {
-                        case MIG_DIR:
-                            new_mig2to1 = true;
-                            new_mig1to2 = false;
-                            break;
-                        case MIG_ALL:
-                            new_mig2to1 = true;
-                            new_mig1to2 = true;
-                            break;
-                        case MIG_ONCE:
-                            new_mig2to1 = false;
-                            new_mig1to2 = false;
-                            break;
-                        default:
-                            DIE_ERROR(1, "Illegal mig param, was %zu\n", (size_t)args->migration_type);
-                            break;
+                        switch (args->migration_type) {
+                            case MIG_DIR:
+                                new_mig2to1 = true;
+                                new_mig1to2 = false;
+                                break;
+                            case MIG_ALL:
+                                new_mig2to1 = true;
+                                new_mig1to2 = true;
+                                break;
+                            case MIG_ONCE:
+                                new_mig2to1 = false;
+                                new_mig1to2 = false;
+                                break;
+                            default:
+                                DIE_ERROR(1, "Illegal mig param, was %zu\n", (size_t) args->migration_type);
+                                break;
+                        }
+
+                        coal_graph_node_t *to;
+                        im_ss_visit_vertex(&to, bst,
+                                           npop1 + 1, npop2 - 1,
+                                           new_mig1to2, new_mig2to1, args);
+                        graph_add_edge((graph_node_t *) *out, (graph_node_t *) to, rate);
                     }
-
-                    coal_graph_node_t *to;
-                    im_ss_visit_vertex(&to, bst,
-                                       npop1 + 1, npop2 - 1,
-                                       new_mig1to2, new_mig2to1, args);
-                    graph_add_edge((graph_node_t *) *out, (graph_node_t *) to, rate);
                 }
             }
         }
@@ -2790,6 +2872,60 @@ int coal_im_get_number_coals_probs(long double **out,
     return 0;
 }
 
+int coal_get_as_mat(gsl_matrix **S, const coal_graph_node_t *graph) {
+    coal_graph_as_gsl_mat_double(S, (coal_graph_node_t *) graph, false);
+
+    return 0;
+}
+
+int coal_get_mat_cdf(long double *out,
+        double t,
+        gsl_matrix *S,
+        coal_graph_node_t *start) {
+    gsl_matrix *alpha = gsl_matrix_calloc(1, S->size2);
+    gsl_matrix *e = gsl_matrix_alloc(S->size1, 1);
+    gsl_matrix_set_all(e, 1);
+
+    for (size_t i = 2; i < S->size1; ++i) {
+        weighted_edge_t *values = vector_get(start->edges);
+        weighted_edge_t *edge = NULL;
+
+        for (size_t j = 0; j < vector_length(start->edges); ++j) {
+            if (((coal_graph_node_t *) values[j].node)->data.vertex_index == i) {
+                edge = &(values[j]);
+                break;
+            }
+        }
+
+        if (edge != NULL) {
+            gsl_matrix_set(alpha, 0, (size_t)((coal_graph_node_t*)edge->node)->data.vertex_index, (double)edge->weight);
+        }
+    }
+
+    gsl_matrix *Sscaled = gsl_matrix_alloc(S->size1, S->size2);
+    gsl_matrix_memcpy(Sscaled, S);
+    gsl_matrix_scale(Sscaled, t);
+
+    gsl_matrix *mat_exp = gsl_matrix_alloc(S->size1, S->size2);
+    gsl_linalg_exponential_ss(Sscaled, mat_exp, GSL_PREC_DOUBLE);
+
+    gsl_matrix *mat_mul_alpha = gsl_matrix_alloc(1, mat_exp->size2);
+    gsl_blas_dgemm(CblasNoTrans, CblasNoTrans, 1.0, alpha, mat_exp, 0, mat_mul_alpha);
+
+    gsl_matrix *mat_mul_e = gsl_matrix_alloc(1, 1);
+    gsl_blas_dgemm(CblasNoTrans, CblasNoTrans, 1.0, mat_mul_alpha, e, 0, mat_mul_e);
+
+    *out = gsl_matrix_get(mat_mul_e, 0, 0);
+    gsl_matrix_free(mat_mul_e);
+    gsl_matrix_free(mat_mul_alpha);
+    gsl_matrix_free(mat_exp);
+    gsl_matrix_free(e);
+    gsl_matrix_free(alpha);
+    gsl_matrix_free(Sscaled);
+
+    return 0;
+}
+
 static int _coal_rewards_set(coal_graph_node_t *node, double(*reward_function)(coal_graph_node_t *node)) {
     if (node->data.visited) {
         return 0;
@@ -3010,4 +3146,41 @@ int coal_graph_im_redirect_at_coals(coal_graph_node_t *graph, const size_t coals
     coal_graph_reset_visited(graph);
 
     return _coal_graph_im_redirect_at_coals(graph, coals, non_iso_bst);
+}
+
+int _coal_graph_clone(coal_graph_node_t *node) {
+    weighted_edge_t *values = vector_get(node->edges);
+
+    for (size_t i = 0; i < vector_length(node->edges); ++i) {
+        coal_graph_node_t *child = (coal_graph_node_t *) values[i].node;
+
+        if (!child->data.visited) {
+            coal_graph_node_t *cloned;
+            coal_graph_node_create(&cloned, child->data.state_vec, child->data.state);
+
+            child->data.pointer = cloned;
+
+            if (cloned == NULL) {
+                DIE_ERROR(1, "Could not create node\n");
+            }
+
+            child->data.visited = true;
+            _coal_graph_clone(child);
+        }
+
+        graph_add_edge(node->data.pointer, child->data.pointer, values[i].weight);
+    }
+
+    return 0;
+}
+
+int coal_graph_clone(coal_graph_node_t **out, coal_graph_node_t *graph) {
+    coal_graph_node_create(out, graph->data.state_vec, graph->data.state);
+    coal_label_vertex_index(NULL, graph);
+    reset_graph_visited(graph);
+    graph->data.visited = true;
+    graph->data.pointer = *out;
+    _coal_graph_clone(graph);
+
+    return 0;
 }

@@ -730,6 +730,60 @@ void test_redir() {
     }
 }
 
+void test_clone_graph() {
+    coal_graph_node_t *graph;
+    coal_graph_node_t *cloned;
+
+    coal_gen_im_graph_args_t args = {
+            .n1 = 3,
+            .n2 = 3,
+            .num_iso_coal_events = 1,
+            .migration_type =  MIG_ALL,
+            .pop_scale1 = 1,
+            .pop_scale2 = 1,
+            .mig_scale1 = 1,
+            .mig_scale2 = 1
+    };
+
+    coal_gen_im_graph(&graph, NULL, args);
+
+    coal_graph_clone(&cloned, graph);
+
+    weight_t **mat;
+    weight_t **mat2;
+    weight_t **mat3;
+    size_t size;
+    size_t size2;
+    size_t size3;
+    coal_graph_as_mat(&mat, &size, graph);
+    coal_graph_as_mat(&mat2, &size2, cloned);
+
+    for (size_t i = 0; i < size; ++i) {
+        for (size_t j = 0; j < size; ++j) {
+            if (fabsl(mat2[i][j] - mat[i][j]) > 0.01) {
+                fflush(stdout);
+                DIE_ERROR(1, "Mat diff!\n");
+            }
+        }
+    }
+
+    // Graph should not change modifying cloned
+    coal_rewards_set(cloned, reward_by);
+    coal_graph_node_t *start;
+    coal_reward_transform(cloned, &start);
+
+    coal_graph_as_mat(&mat3, &size3, graph);
+
+    for (size_t i = 0; i < size; ++i) {
+        for (size_t j = 0; j < size; ++j) {
+            if (fabsl(mat3[i][j] - mat[i][j]) > 0.01) {
+                fflush(stdout);
+                DIE_ERROR(1, "Mat diff!\n");
+            }
+        }
+    }
+}
+
 int main(int argc, char **argv) {
     //test_gen();
     //printf("\n..\n");
@@ -789,7 +843,9 @@ int main(int argc, char **argv) {
     //printf("\n..\n");
     //test_reward_transform();
     //printf("\n..\n");
-    test_redir();
+    //test_redir();
+    //printf("\n..\n");
+    test_clone_graph();
     printf("\n..\n");
     return 0;
 }

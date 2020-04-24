@@ -32,40 +32,25 @@ double reward(coal_graph_node_t* node) {
 
 clock_t total_conv = 0;
 
-void print_rw_mat(FILE *out, coal_graph_node_t *start) {
-    weight_t **mat;
-    size_t size;
-    clock_t s = clock();
-    coal_graph_as_mat(&mat, &size, start);
-    total_conv += clock() - s;
+void print_cdf_mat(FILE *out, coal_graph_node_t *start) {
+    long double res;
+    gsl_matrix *S;
+    coal_get_as_mat(&S, start);
 
-    for (size_t i = 2; i < size; ++i) {
-        weighted_edge_t *values = vector_get(start->edges);
-        weighted_edge_t *edge = NULL;
-
-        for (size_t j = 0; j < vector_length(start->edges); ++j) {
-            if (((coal_graph_node_t *) values[j].node)->data.vertex_index == i) {
-                edge = &(values[j]);
-                break;
-            }
-        }
-
-        if (edge != NULL) {
-            fprintf(out, "%Lf ", edge->weight);
-        } else {
-            fprintf(out, "0 ");
-        }
+    for (double t = 0; t <= 30; t += 0.5) {
+        fprintf(out, "%f ", t);
     }
 
-    fprintf(out, "\n\n");
+    fprintf(out, "\n");
 
-    for (size_t i = 2; i < size; ++i) {
-        for (size_t j = 2; j < size; ++j) {
-            fprintf(out, "%Lf ", mat[i][j]);
-        }
-
-        fprintf(out, "\n");
+    for (double t = 0; t <= 30; t += 0.5) {
+        coal_get_mat_cdf(&res, t, S, start);
+        fprintf(out, "%Lf ", 1-res);
     }
+
+    free(S);
+
+    fprintf(out, "\n");
 }
 
 int main(int argc, char **argv) {
@@ -165,7 +150,7 @@ int main(int argc, char **argv) {
                     coal_reward_transform(graph, &start_node);
                     tot_rw += clock() - start;
                     start = clock();
-                    print_rw_mat(f, start_node);
+                    print_cdf_mat(f, start_node);
                     tot_write += clock() - start;
                     fclose(f);
                 }
@@ -203,7 +188,7 @@ int main(int argc, char **argv) {
         coal_reward_transform(graphss, &start_nodess);
         tot_rw += clock() - start;
         start = clock();
-        print_rw_mat(f, start_nodess);
+        print_cdf_mat(f, start_nodess);
         tot_write += clock() - start;
         fclose(f);
     }
