@@ -13,4 +13,4 @@ This proejct supports Linux, OSX, and Windows Subsystem for Linux, and likely Wi
 For now, this project is unlicensed, I will release it under a proper license later.
 
 ## Contact
-tobiasroikjergitemail@gmail.com
+tobiasgitemail@gmail.com
