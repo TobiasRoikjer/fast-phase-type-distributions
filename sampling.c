@@ -476,7 +476,23 @@ int _sampling_graph_pfd_constants_rec_rw(sampling_number_t **k_out,
 
 int dir = 1;
 
-long double get_reward_rate_unique(coal_graph_node_t *node, avl_double_node_t **bst) {
+static bool node_is_descendant(coal_graph_node_t *node, coal_graph_node_t *find) {
+    if (node == find) {
+        return true;
+    }
+
+    weighted_edge_t *values = vector_get(node->edges);
+
+    for (size_t i = 0; i < vector_length(node->edges); i++) {
+        if (node_is_descendant((coal_graph_node_t *) values[i].node, find)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+static long double get_reward_rate_unique(coal_graph_node_t *node, avl_double_node_t **bst) {
     //fprintf(stderr, "The node %zu  has a direct rate of %Lf and a reward of %f\n",
     //        node->data.vertex_index, get_direct_rate(node), node->data.reward);
 
@@ -494,9 +510,26 @@ long double get_reward_rate_unique(coal_graph_node_t *node, avl_double_node_t **
         return get_reward_rate_unique(node, bst);
     }
 
-    avl_double_insert(bst, rw_rate, node, EPSILON);
-
     return rw_rate;
+}
+
+void assign(coal_graph_node_t *node, size_t *index, avl_double_node_t **bst,
+            sampling_number_t *reward_rates) {
+    node->data.vertex_index = *index;
+    (*index)--;
+
+    long double reward_rate = get_reward_rate_unique(node, bst);
+    reward_rates[node->data.vertex_index] = reward_rate;
+    avl_double_insert(bst, reward_rate, node, EPSILON);
+    dir = dir * -1;
+
+    weighted_edge_t *values = vector_get(node->edges);
+
+    for (size_t i = 0; i < vector_length(node->edges); i++) {
+        assign((coal_graph_node_t *) values[i].node, index, bst, reward_rates);
+    }
+
+    avl_double_insert(bst, reward_rate, node, EPSILON);
 }
 
 int sampling_graph_pfd_constants_rec_rw(pdf_constant_t **out, size_t *out_size,
@@ -508,34 +541,10 @@ int sampling_graph_pfd_constants_rec_rw(pdf_constant_t **out, size_t *out_size,
 
     sampling_number_t *reward_rates = calloc(length, sizeof(sampling_number_t));
 
-    queue_t *queue;
-    queue_create(&queue, 8);
-    queue_enqueue(queue, graph);
     size_t index = length - 1;
     avl_double_node_t *bst = NULL;
 
-    while(!queue_empty(queue)) {
-        coal_graph_node_t *node = queue_dequeue(queue);
-
-        if (node->data.visited) {
-            continue;
-        }
-
-        node->data.vertex_index = index;
-        index--;
-
-        reward_rates[node->data.vertex_index] = get_reward_rate_unique(node, &bst);
-        //fprintf(stderr, "assigned %Lf to %zu\n", reward_rates[node->data.vertex_index], node->data.vertex_index);
-        dir = dir * -1;
-
-        weighted_edge_t *values = vector_get(node->edges);
-
-        node->data.visited = true;
-
-        for (size_t i = 0; i < vector_length(node->edges); i++) {
-            queue_enqueue(queue, values[i].node);
-        }
-    }
+    assign(graph, &index, &bst, reward_rates);
 
     sampling_number_t *k_out;
     sampling_number_t **vertices_k = calloc(length, sizeof(sampling_number_t*));

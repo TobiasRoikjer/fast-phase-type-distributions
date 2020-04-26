@@ -10,7 +10,7 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
 
-SET(SOURCE_FILES bbst.h utils.h mat.h coal.h phdist.h bbst.c mat.c coal.c phdist.c dist.c dist.h utils.c sampling.c sampling.h)
+SET(SOURCE_FILES bbst.h utils.h coal.h sampling.h dist.h bbst.c coal.c dist.c utils.c sampling.c)
 add_library(amazephase ${SOURCE_FILES})
 add_executable(run_lmvu run_lmvu.c)
 add_executable(run_build_kingman run_build_kingman.c)

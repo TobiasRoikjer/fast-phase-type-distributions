@@ -236,7 +236,7 @@ int main(int argc, char **argv) {
         testcdffast((double)i*0.1f);
     }*/
     test_rw_cdf();
-    test_rw_cdf2();
+    //test_rw_cdf2();
     //test_sampling_constants_slow();
 
     return 0;
