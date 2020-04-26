@@ -1,4 +1,4 @@
-#include "coal.h"
+#include "../src/coal.h"
 #include <time.h>
 
 int main(int argc, char **argv) {

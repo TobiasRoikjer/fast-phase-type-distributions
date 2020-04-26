@@ -1,4 +1,4 @@
-#include "coal.h"
+#include "../src/coal.h"
 #include <string.h>
 #include <time.h>
 

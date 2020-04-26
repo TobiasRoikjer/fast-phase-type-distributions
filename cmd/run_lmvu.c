@@ -1,4 +1,4 @@
-#include "coal.h"
+#include "../src/coal.h"
 
 int main(int argc, char **argv) {
     printf("type,n,i,j,value\n");

@@ -1,4 +1,4 @@
-#include "coal.h"
+#include "../src/coal.h"
 
 static size_t reward_i;
 static size_t reward_j;

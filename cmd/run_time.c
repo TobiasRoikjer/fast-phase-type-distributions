@@ -1,5 +1,5 @@
-#include "coal.h"
-#include "sampling.h"
+#include "../src/coal.h"
+#include "../src/sampling.h"
 #include <time.h>
 #include <string.h>
 
