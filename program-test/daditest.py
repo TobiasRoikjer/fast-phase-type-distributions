@@ -22,7 +22,7 @@ res = IM([float(x) for x in sys.argv[3:8]], (int(sys.argv[1]),int(sys.argv[1])),
 for i in range(0,int(sys.argv[1])+1):
     for j in range(0,int(sys.argv[2])+1):
         if isinstance(res[i,j], float):
-            print(round(res[i,j],2), end="\t")
+            print(round(res[i,j],3), end="\t")
         else:
             print(0, end="\t")
     print("")
