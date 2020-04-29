@@ -1955,7 +1955,10 @@ int coal_im_get_number_coals_probs(long double **out,
     size_t limit = args->n1 + args->n2 - 1;
     *out = calloc(limit, sizeof(long double));
     coal_graph_node_t *graph;
-    coal_gen_im_ss_graph(&graph, *args);
+    coal_gen_im_graph_args_t *prob_args = malloc(sizeof(coal_gen_im_graph_args_t));
+    memcpy(prob_args, args, sizeof(coal_gen_im_graph_args_t));
+    prob_args->num_iso_coal_events = prob_args->n1 + prob_args->n2 - 1;
+    coal_gen_im_ss_graph(&graph, *prob_args);
 
     gsl_matrix_long_double *mat;
     coal_graph_as_gsl_mat(&mat, graph, false);
