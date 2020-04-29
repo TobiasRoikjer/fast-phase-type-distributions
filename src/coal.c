@@ -2292,3 +2292,53 @@ int coal_graph_clone(coal_graph_node_t **out, coal_graph_node_t *graph) {
 
     return 0;
 }
+
+void set_indegree(coal_graph_node_t *node) {
+    if (node->data.visited) {
+        return;
+    }
+
+    node->data.visited = true;
+    node->data.value = vector_length(node->reverse_edges);
+
+    weighted_edge_t *values = vector_get(node->edges);
+
+    for (size_t i = 0; i < vector_length(node->edges); ++i) {
+        coal_graph_node_t *child = (coal_graph_node_t *) values[i].node;
+
+        set_indegree(child);
+    }
+}
+
+int coal_label_topological_index(size_t *largest_index, coal_graph_node_t *graph) {
+    reset_graph_visited(graph);
+    set_indegree(graph);
+    reset_graph_visited(graph);
+    queue_t *queue;
+    queue_create(&queue, 8);
+    queue_enqueue(queue, graph);
+    size_t index = 0;
+
+    while(!queue_empty(queue)) {
+        coal_graph_node_t *node = queue_dequeue(queue);
+
+        node->data.vertex_index = index;
+        index++;
+
+        weighted_edge_t *values = vector_get(node->edges);
+
+        for (size_t i = 0; i < vector_length(node->edges); ++i) {
+            coal_graph_node_t *child = (coal_graph_node_t *) values[i].node;
+
+            child->data.value -= 1;
+
+            if (child->data.value == 0) {
+                queue_enqueue(queue, child);
+            }
+        }
+    }
+
+    if (largest_index != NULL) {
+        *largest_index = index - 1;
+    }
+}

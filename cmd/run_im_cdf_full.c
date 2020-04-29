@@ -50,7 +50,7 @@ void print_cdf_graph(FILE *out, coal_graph_node_t *start) {
     long double const_sum = 0;
     for (size_t i = 0; i < size; ++i) {
         const_sum += constants[i].constant;
-        fprintf(stderr, "Adding %Lf, sum is now %Lf\n", constants[i].constant, const_sum);
+        //fprintf(stderr, "Adding %Lf, sum is now %Lf\n", constants[i].constant, const_sum);
     }
 
     for (double t = 0; t <= 30; t += 0.5) {

@@ -3,11 +3,23 @@
 #include <time.h>
 #include <string.h>
 
+size_t reward_index;
+
+double reward(coal_graph_node_t *node) {
+    return node->data.state_vec[reward_index];
+}
+
+double reward_one(coal_graph_node_t *node) {
+    return 1;
+}
+
 int main(int argc, char **argv) {
     if (strcmp(argv[1], "pdf_constants") == 0) {
         size_t n = (size_t) atoi(argv[2]);
+        reward_index = (size_t) atoi(argv[3]) - 1;
         coal_graph_node_t *graph;
         coal_gen_kingman_graph(&graph, n);
+        coal_rewards_set(graph, reward);
         fprintf(stderr, "Done generating graph\n");
 
         time_t start;
@@ -16,7 +28,32 @@ int main(int argc, char **argv) {
         pdf_constant_t *constants;
         size_t size;
 
-        sampling_graph_pfd_constants_rec(&constants, &size, graph, n, (size_t) atoi(argv[3]) - 1);
+        sampling_graph_pfd_constants_rec_rw(&constants, &size, graph);
+
+        fprintf(stdout, "Time elapsed for %zu samples rewarded by %zu'tons: %lu\n",
+                (size_t) atoi(argv[2]), (size_t) atoi(argv[3]), (long) (time(NULL)-start));
+
+        return 0;
+    } else if (strcmp(argv[1], "pdf_constants_trans") == 0) {
+        size_t n = (size_t) atoi(argv[2]);
+        reward_index = (size_t) atoi(argv[3]) - 1;
+        coal_graph_node_t *graph;
+        coal_graph_node_t *start_node;
+        coal_gen_kingman_graph(&graph, n);
+        coal_rewards_set(graph, reward);
+        fprintf(stderr, "Done generating graph\n");
+
+        time_t start;
+        start = time(NULL);
+
+        pdf_constant_t *constants;
+        size_t size;
+
+        coal_reward_transform(graph, &start_node);
+        coal_rewards_set(start_node, reward_one);
+        start_node->data.reward = 0;
+
+        sampling_graph_pfd_constants_rec_rw(&constants, &size, start_node);
 
         fprintf(stdout, "Time elapsed for %zu samples rewarded by %zu'tons: %lu\n",
                 (size_t) atoi(argv[2]), (size_t) atoi(argv[3]), (long) (time(NULL)-start));

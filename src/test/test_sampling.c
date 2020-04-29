@@ -127,7 +127,7 @@ static void testcdffast(double t) {
 size_t n;
 
 double reward_sing(coal_graph_node_t *node) {
-    return node->data.state_vec[1];
+    return node->data.state_vec[2];
 }
 
 double reward_singinc(coal_graph_node_t *node) {
@@ -163,19 +163,18 @@ void test_rw_cdf() {
     coal_rewards_set(graph2, reward_sing);
     graph2->data.reward = 0;
     coal_reward_transform(graph2, &graph2s);
+    coal_print_graph_list(stderr, graph2s, true, 4, 4);
     coal_rewards_set(graph2s, reward_one);
     graph2s->data.reward = 0;
     size_t constants_size;
     //coal_graph_node_t *first = (coal_graph_node_t *) ((weighted_edge_t*)vector_get(graph2s->edges))[0].node;
     sampling_graph_pfd_constants_rec_rw(&constants, &constants_size, graph2s);
 fflush(stderr);
-    FILE *f = fopen("/mnt/c/Users/Tobias/Documents/school/speciale/data/consts.tsv","w");
+
     for (size_t i = 0; i < constants_size; ++i) {
-        fprintf(f, "%Lf %Lf\n", constants[i].constant, constants[i].rate);
-        fprintf(stdout, "%Lf %Lf\n", constants[i].constant, constants[i].rate);
+        fprintf(stdout, "%zu: %Lf %Lf\n", i, constants[i].constant, constants[i].rate);
     }
 
-    fclose(f);
 
     for (double t = 0; t < 1; t+=0.1f) {
         long double res = 0;
@@ -189,6 +188,8 @@ fflush(stderr);
 
         fprintf(stdout, "CDF %f: %Lf %Lf (%Lf)\n", t, res, respdf, 1 - constsum);
     }
+
+    fflush(stdout);
 }
 
 void test_rw_cdf2() {
@@ -198,18 +199,17 @@ void test_rw_cdf2() {
     coal_graph_node_t *graph2;
     coal_gen_kingman_graph(&graph2, n);
     coal_label_vertex_index(NULL, graph2);
-    coal_rewards_set(graph2, reward_singinc);
+    coal_rewards_set(graph2, reward_sing);
     graph2->data.reward = 0;
     size_t constants_size;
     sampling_graph_pfd_constants_rec_rw(&constants, &constants_size, graph2);
     fflush(stderr);
-    FILE *f = fopen("/mnt/c/Users/Tobias/Documents/school/speciale/data/consts.tsv","w");
+
     for (size_t i = 0; i < constants_size; ++i) {
-        fprintf(f, "%Lf %Lf\n", constants[i].constant, constants[i].rate);
-        fprintf(stdout, "%Lf %Lf\n", constants[i].constant, constants[i].rate);
+        fprintf(stdout, "%zu: %Lf %Lf\n", i, constants[i].constant, constants[i].rate);
     }
 
-    fclose(f);
+    fflush(stdout);
 
     for (double t = 0; t < 1; t+=0.1f) {
         long double res = 0;
@@ -236,7 +236,7 @@ int main(int argc, char **argv) {
         testcdffast((double)i*0.1f);
     }*/
     test_rw_cdf();
-    //test_rw_cdf2();
+    test_rw_cdf2();
     //test_sampling_constants_slow();
 
     return 0;
