@@ -2,14 +2,11 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <stdio.h>
-#include <math.h>
 #include <float.h>
 #include <gsl/gsl_matrix_long_double.h>
 #include <gsl/gsl_matrix.h>
 #include <gsl/gsl_linalg.h>
 #include "coal.h"
-#include "bbst.h"
-#include "utils.h"
 
 typedef enum  {
   IM_VERTEX_TYPE_MIG,
@@ -359,6 +356,75 @@ int coal_graph_as_gsl_mat(gsl_matrix_long_double **weights, coal_graph_node_t *g
     *weights = gsl_matrix_long_double_calloc(size, size);
 
     insert_into_gsl_weight_mat(*weights, graph, include_absorbing);
+
+    return 0;
+}
+
+void insert_into_gsl_weight_mat_discrete(gsl_matrix_long_double *weights,
+                                coal_graph_node_t *node,
+                                bool include_absorbing) {
+    if (node->data.visited) {
+        return;
+    }
+
+    node->data.visited = true;
+
+    weighted_edge_t *values = vector_get(node->edges);
+    weight_t sum = 0;
+    size_t node_index = (size_t) node->data.vertex_index;
+
+    if (!include_absorbing) {
+        if (node_index == 0) {
+            return;
+        }
+
+        node_index--;
+    }
+
+    for (size_t i = 0; i < vector_length(node->edges); i++) {
+        coal_graph_node_t *child = (coal_graph_node_t *) values[i].node;
+        size_t child_index = (size_t) child->data.vertex_index;
+        sum += values[i].weight;
+
+        if (!include_absorbing) {
+            if (child_index == 0) {
+                continue;
+            }
+
+            child_index--;
+        }
+
+        gsl_matrix_long_double_set(weights,
+                                   (const size_t) node_index,
+                                   (const size_t) child_index,
+                                   values[i].weight);
+    }
+
+    gsl_matrix_long_double_set(weights,
+                               (const size_t) node_index,
+                               (const size_t) node_index,
+                               1 - sum);
+
+    for (size_t i = 0; i < vector_length(node->edges); i++) {
+        coal_graph_node_t *child = (coal_graph_node_t *) values[i].node;
+
+        insert_into_gsl_weight_mat_discrete(weights, child, include_absorbing);
+    }
+}
+
+int coal_graph_as_gsl_mat_discrete(gsl_matrix_long_double **weights, coal_graph_node_t *graph, bool include_absorbing) {
+    size_t largest_index;
+    coal_label_vertex_index(&largest_index, graph);
+    reset_graph_visited(graph);
+    size_t size = largest_index+1;
+
+    if (!include_absorbing) {
+        size--;
+    }
+
+    *weights = gsl_matrix_long_double_calloc(size, size);
+
+    insert_into_gsl_weight_mat_discrete(*weights, graph, include_absorbing);
 
     return 0;
 }
@@ -2344,4 +2410,136 @@ int coal_label_topological_index(size_t *largest_index, coal_graph_node_t *graph
     if (largest_index != NULL) {
         *largest_index = index - 1;
     }
+}
+
+int _coal_construct_unshifted_discrete(coal_graph_node_t *node,
+        double theta) {
+    if (node->data.visited) {
+        return 0;
+    }
+
+    node->data.visited = true;
+
+    weight_t total_reward = node->data.reward;
+
+    weight_t rate = 0;
+    weighted_edge_t *values = vector_get(node->edges);
+
+    for (size_t i = 0; i < vector_length(node->edges); i++) {
+        rate += values[i].weight;
+    }
+
+
+    weight_t reward_rate = rate / total_reward;
+    weight_t self_loop_prob = (theta/2)/(theta/2 + reward_rate);
+
+    for (size_t i = 0; i < vector_length(node->edges); ++i) {
+        coal_graph_node_t *child = (coal_graph_node_t *) values[i].node;
+
+        _coal_construct_unshifted_discrete(child, theta);
+    }
+
+    size_t n_edges = vector_length(node->edges);
+
+    for (size_t i = 0; i < n_edges; ++i) {
+        weight_t probability = values[i].weight / rate;
+        values[i].weight = probability * (1 - self_loop_prob);
+    }
+
+    return 0;
+}
+
+int coal_construct_unshifted_discrete(coal_graph_node_t *graph, double theta) {
+    reset_graph_visited(graph);
+    return _coal_construct_unshifted_discrete(graph, theta);
+}
+
+int _coal_unshifted_discrete_apply_weighting(coal_graph_node_t *node, size_t *weights, size_t weight_length) {
+    if (node->data.visited) {
+        return 0;
+    }
+
+    node->data.visited = true;
+
+    if (vector_length(node->edges) == 0) {
+        return 0;
+    }
+
+    weighted_edge_t *values = vector_get(node->edges);
+
+    for (size_t i = 0; i < vector_length(node->edges); ++i) {
+        coal_graph_node_t *child = (coal_graph_node_t *) values[i].node;
+
+        _coal_unshifted_discrete_apply_weighting(child, weights, weight_length);
+    }
+
+    size_t total_reward = 0;
+
+    for (size_t i = 0; i < weight_length; ++i) {
+        total_reward += node->data.state_vec[i];
+    }
+
+    weight_t total_weight = 0;
+
+    for (size_t i = 0; i < weight_length; ++i) {
+        total_weight += weights[i];
+    }
+
+    weight_t self_loop_prob = 1;
+
+    for (size_t i = 0; i < vector_length(node->edges); i++) {
+        self_loop_prob -= values[i].weight;
+    }
+
+    coal_graph_node_t **helpers;
+
+    size_t max_weight = 0;
+
+    for (size_t i = 0; i < weight_length; ++i) {
+        if (node->data.state_vec[i] != 0) {
+            if (weights[i] > max_weight) {
+                max_weight = weights[i];
+            }
+        }
+    }
+
+    /*if (max_weight == 0) {
+        for (size_t i = 0; i < vector_length(node->edges); i++) {
+            values[i].weight /= (1-self_loop_prob);
+        }
+        return 0;
+    }*/
+
+    helpers = calloc(max_weight + 1, sizeof(coal_graph_node_t*));
+    helpers[0] = node;
+
+    for (size_t i = 1; i < max_weight + 1; ++i) {
+        coal_graph_node_create(&(helpers[i]), node->data.state_vec, NULL);
+        graph_add_edge((graph_node_t *) helpers[i], (graph_node_t *) helpers[i - 1], 1);
+    }
+
+    for (size_t i = 0; i < weight_length; ++i) {
+        if (weights[i] == 0 || node->data.state_vec[i] == 0) {
+            continue;
+        }
+
+        weight_t weight_prob = ((weight_t)node->data.state_vec[i]) / total_reward;
+        weight_t new_weight = self_loop_prob * weight_prob;
+
+        if (weights[i] != 0) {
+            fprintf(stderr, "Adding edge to helper no. %zu from vertex %zu, reward no %zu, with weight %Lf\n",
+                    weights[i]-1, node->data.vertex_index, i, new_weight);
+            if (weights[i] != 1) {
+                graph_combine_edge((graph_node_t *) node, (graph_node_t *) helpers[weights[i] - 1], new_weight);
+            }
+        }
+    }
+
+    return 0;
+}
+
+int coal_unshifted_discrete_apply_weighting(coal_graph_node_t *graph, size_t *weights, size_t weight_length) {
+    coal_label_vertex_index(NULL, graph);
+    reset_graph_visited(graph);
+    return _coal_unshifted_discrete_apply_weighting(graph, weights, weight_length);
 }

@@ -449,6 +449,68 @@ void test_clone_graph() {
     }
 }
 
+size_t n;
+
+double reward_sum(coal_graph_node_t *node) {
+    double reward = 0;
+    for (size_t i = 0; i < n; ++i) {
+        reward += node->data.state_vec[i];
+    }
+
+    return reward;
+}
+
+void test_discrete() {
+    n = 4;
+    gsl_matrix_long_double *mat;
+    coal_graph_node_t *graph;
+
+    coal_gen_kingman_graph(&graph, n);
+
+    coal_rewards_set(graph, reward_sum);
+    coal_construct_unshifted_discrete(graph, 1);
+    coal_graph_as_gsl_mat_discrete(&mat, graph, false);
+
+    for (size_t i = 0; i < mat->size1; ++i) {
+        for (size_t j = 0; j < mat->size2; ++j) {
+            fprintf(stdout, "%Lf ", gsl_matrix_long_double_get(mat, i, j));
+        }
+
+        fprintf(stdout, "\n");
+    }
+
+}
+
+void test_discrete_weight() {
+    size_t n = 3;
+    gsl_matrix_long_double *mat;
+    coal_graph_node_t *graph;
+
+    coal_gen_kingman_graph(&graph, n);
+
+    coal_rewards_set(graph, reward_sum);
+    coal_construct_unshifted_discrete(graph, 1);
+
+    size_t *weights = calloc(n, sizeof(size_t));
+
+    for (size_t i = 0; i < n; ++i) {
+        weights[i] = 1;
+    }
+
+    coal_unshifted_discrete_apply_weighting(graph, weights, n);
+
+    coal_graph_as_gsl_mat_discrete(&mat, graph, true);
+
+    for (size_t i = 0; i < mat->size1; ++i) {
+        for (size_t j = 0; j < mat->size2; ++j) {
+            fprintf(stdout, "%Lf ", gsl_matrix_long_double_get(mat, i, j));
+        }
+
+        fprintf(stdout, "\n");
+    }
+
+}
+
 int main(int argc, char **argv) {
     //test_gen();
     //printf("\n..\n");
@@ -510,7 +572,11 @@ int main(int argc, char **argv) {
     //printf("\n..\n");
     //test_redir();
     //printf("\n..\n");
-    test_clone_graph();
+    //test_clone_graph();
+    //printf("\n..\n");
+    test_discrete();
+    printf("\n..\n");
+    test_discrete_weight();
     printf("\n..\n");
     return 0;
 }

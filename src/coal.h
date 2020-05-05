@@ -119,6 +119,7 @@ int coal_get_mat_cdf(long double *out,
 int coal_graph_im_redirect_at_coals(coal_graph_node_t *graph, const size_t coals, const avl_vec_node_t *non_iso_bst);
 int coal_graph_as_mat(weight_t ***weights, size_t *out_size, coal_graph_node_t *graph);
 int coal_graph_as_gsl_mat(gsl_matrix_long_double **weights, coal_graph_node_t *graph, bool include_absorbing);
+int coal_graph_as_gsl_mat_discrete(gsl_matrix_long_double **weights, coal_graph_node_t *graph, bool include_absorbing);
 long double coal_mph_expected(coal_graph_node_t *graph, size_t reward_index);
 gsl_matrix_long_double * coal_mph_im_expected(coal_graph_node_t *graph, size_t n1, size_t n2);
 long double coal_mph_cov(coal_graph_node_t *graph,
@@ -130,6 +131,8 @@ size_t coal_get_edges(coal_graph_node_t *graph);
 void coal_graph_reset(coal_graph_node_t *graph);
 void coal_graph_reset_visited(coal_graph_node_t *graph);
 int coal_graph_clone(coal_graph_node_t **out, coal_graph_node_t *graph);
+int coal_construct_unshifted_discrete(coal_graph_node_t *graph, double theta);
+int coal_unshifted_discrete_apply_weighting(coal_graph_node_t *graph, size_t *weights, size_t weight_length);
 
 void coal_print_graph_list(FILE *stream, coal_graph_node_t *graph,
                            bool indexed,
