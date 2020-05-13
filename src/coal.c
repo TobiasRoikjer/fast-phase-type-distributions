@@ -2503,13 +2503,6 @@ int _coal_unshifted_discrete_apply_weighting(coal_graph_node_t *node, size_t *we
         }
     }
 
-    /*if (max_weight == 0) {
-        for (size_t i = 0; i < vector_length(node->edges); i++) {
-            values[i].weight /= (1-self_loop_prob);
-        }
-        return 0;
-    }*/
-
     helpers = calloc(max_weight + 1, sizeof(coal_graph_node_t*));
     helpers[0] = node;
 
@@ -2527,8 +2520,6 @@ int _coal_unshifted_discrete_apply_weighting(coal_graph_node_t *node, size_t *we
         weight_t new_weight = self_loop_prob * weight_prob;
 
         if (weights[i] != 0) {
-            fprintf(stderr, "Adding edge to helper no. %zu from vertex %zu, reward no %zu, with weight %Lf\n",
-                    weights[i]-1, node->data.vertex_index, i, new_weight);
             if (weights[i] != 1) {
                 graph_combine_edge((graph_node_t *) node, (graph_node_t *) helpers[weights[i] - 1], new_weight);
             }

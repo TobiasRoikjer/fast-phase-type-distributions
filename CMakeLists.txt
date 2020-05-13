@@ -9,6 +9,9 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
+IF(CMAKE_COMPILER_IS_GNUCC)
+    set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -O3")
+ENDIF(CMAKE_COMPILER_IS_GNUCC)
 
 SET(SOURCE_FILES src/bbst.h src/utils.h src/coal.h src/sampling.h src/dist.h src/bbst.c src/coal.c src/dist.c src/utils.c src/sampling.c)
 add_library(amazephase ${SOURCE_FILES})
