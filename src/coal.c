@@ -2019,7 +2019,7 @@ int coal_im_get_number_coals_probs(long double **out,
                                        double isolation_time,
                                        const coal_gen_im_graph_args_t *args) {
     size_t limit = args->n1 + args->n2 - 1;
-    *out = calloc(limit, sizeof(long double));
+    *out = calloc(limit+1, sizeof(long double));
     coal_graph_node_t *graph;
     coal_gen_im_graph_args_t *prob_args = malloc(sizeof(coal_gen_im_graph_args_t));
     memcpy(prob_args, args, sizeof(coal_gen_im_graph_args_t));
