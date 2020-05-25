@@ -277,9 +277,9 @@ int _sampling_graph_pfd_constants_rec(sampling_number_t **k_out,
 }
 
 int cmp_pdf_constant(const pdf_constant_t *a, const pdf_constant_t *b) {
-    if (a->rate < b->rate) {
+    if (fabsl(a->rate) < fabsl(b->rate)) {
         return -1;
-    } else if (a->rate > b->rate) {
+    } else if (fabsl(a->rate) > fabsl(b->rate)) {
         return 1;
     } else {
         return 0;
@@ -566,6 +566,7 @@ int sampling_graph_pfd_constants_rec_rw(pdf_constant_t **out, size_t *out_size,
     coal_graph_reset_visited(graph);
 
     sampling_number_t *reward_rates = calloc(length, sizeof(sampling_number_t));
+    coal_graph_node_t **vertices = calloc(length, sizeof(coal_graph_node_t *));
 
     avl_double_node_t *bst = NULL;
 
@@ -581,7 +582,7 @@ int sampling_graph_pfd_constants_rec_rw(pdf_constant_t **out, size_t *out_size,
         node->data.vertex_index = max_index - node->data.vertex_index;
 
         reward_rates[node->data.vertex_index] = get_reward_rate_unique(node, &bst);
-        //fprintf(stderr, "assigned %Lf to %zu\n", reward_rates[node->data.vertex_index], node->data.vertex_index);
+        vertices[node->data.vertex_index] = node;
         dir = dir * -1;
 
         weighted_edge_t *values = vector_get(node->edges);
@@ -605,6 +606,7 @@ int sampling_graph_pfd_constants_rec_rw(pdf_constant_t **out, size_t *out_size,
         if (!isinf(reward_rates[j]) && !isnan(reward_rates[j])) {
             (*out)[count].rate = reward_rates[j];
             (*out)[count].constant = k_out[j];
+            (*out)[count].node = vertices[j];
             count++;
         }
     }

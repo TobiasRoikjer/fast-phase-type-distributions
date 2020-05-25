@@ -9,6 +9,7 @@ typedef long double sampling_number_t;
 typedef struct {
     sampling_number_t rate;
     sampling_number_t constant;
+    coal_graph_node_t *node;
 } pdf_constant_t;
 
 int sampling_graph_iterative(sampling_number_t **out, coal_graph_node_t *graph, size_t reward_size);

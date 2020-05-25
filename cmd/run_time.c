@@ -14,7 +14,19 @@ double reward_one(coal_graph_node_t *node) {
 }
 
 int main(int argc, char **argv) {
-    if (strcmp(argv[1], "pdf_constants") == 0) {
+    if (strcmp(argv[1], "ss_kingman") == 0) {
+        size_t n = (size_t) atoi(argv[2]);
+        coal_graph_node_t *graph;
+
+        time_t start;
+        start = time(NULL);
+        coal_gen_kingman_graph(&graph, n);
+
+        fprintf(stdout, "Time elapsed for %zu samples: %lu\n",
+                (size_t) atoi(argv[2]), (long) (time(NULL)-start));
+
+        return 0;
+    } else if (strcmp(argv[1], "pdf_constants") == 0) {
         size_t n = (size_t) atoi(argv[2]);
         reward_index = (size_t) atoi(argv[3]) - 1;
         coal_graph_node_t *graph;
