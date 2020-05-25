@@ -59,6 +59,7 @@ typedef long double coal_param_real_t;
 typedef long double coal_res_real_t;
 
 int coal_gen_kingman_graph(coal_graph_node_t **graph, size_t n);
+int coal_gen_kingman_graph_rw(coal_graph_node_t **graph, size_t n, size_t rw_index);
 
 typedef enum {
     MIG_DIR,

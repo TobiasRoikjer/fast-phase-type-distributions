@@ -166,6 +166,131 @@ static int kingman_visit_vertex(coal_graph_node_t **out,
     }
 }
 
+static int kingman_visit_vertex_rw(coal_graph_node_t **out,
+                                   size_t rw_index,
+                                   vec_entry_t *state,
+                                   avl_vec_node_t *bst,
+                                   size_t state_size,
+                                   size_t vector_length,
+                                   const size_t vec_nmemb) {
+    avl_vec_node_t *bst_node = avl_vec_find(bst, state, vector_length);
+
+    if (bst_node != NULL) {
+        *out = bst_node->entry;
+        return 0;
+    } else {
+        /*fprintf(stderr, "ADDING: ");
+        bool all_zero = true;
+        for (size_t k = 0; k < state_size; ++k) {
+            fprintf(stderr, "%zu, ", state[k]);
+
+            if (state[k] > 0) {
+                all_zero = false;
+            }
+        }
+
+        if (all_zero) {
+            DIE_ERROR(1, "ZERO");
+        }
+        fprintf(stderr, "\n");*/
+        vec_entry_t *vertex_state = malloc(sizeof(vec_entry_t) * vector_length);
+        memcpy(vertex_state, state, sizeof(vec_entry_t) * vector_length);
+
+        coal_graph_node_create(out, vertex_state, vertex_state);
+
+        avl_vec_insert(&bst, vertex_state, *out, vector_length);
+
+        vec_entry_t *v = state;
+
+        for (vec_entry_t i = 0; i < state_size; i++) {
+            for (vec_entry_t j = i; j < state_size; j++) {
+                if (((i == j && v[i] >= 2) || (i != j && v[i] > 0 && v[j] > 0))) {
+                    mat_entry_t t = i == j ? v[i] * (v[i] - 1) / 2 : v[i] * v[j];
+
+                    vec_entry_t *old = malloc(sizeof(vec_entry_t) * vector_length);
+                    memcpy(old, v, sizeof(vec_entry_t) * vector_length);
+
+                    v[i]--;
+                    v[j]--;
+
+                    if (i == state_size - 1 || j == state_size - 1) {
+                        v[state_size - 1]++;
+                        //fprintf(stderr, "PUSHING from %zu <> %zu, because %zu\n",
+                        //        i, j, state_size - 1);
+                    } else {
+                        v[(i + j + 2) - 1]++;
+                    }
+
+                    bool *is_available = calloc(vector_length, sizeof(bool));
+
+                    for (size_t k = 0; k < state_size; ++k) {
+                        if (v[k] > 0) {
+                            is_available[k] = true;
+                            continue;
+                        }
+
+                        for (size_t k1 = 0; k1 < k; ++k1) {
+                            size_t oppo = k - k1 - 1;
+
+                            if (oppo == k1) {
+                                //if (v[k1] >= 2) {
+                                if (is_available[k1]) {
+                                    is_available[k] = true;
+                                }
+                            } else {
+                                //if (v[k1] > 0 && v[oppo] > 0) {
+                                if (is_available[k1] && is_available[oppo]) {
+                                    is_available[k] = true;
+                                }
+                            }
+                        }
+                    }
+
+                    /*fprintf(stderr, "Vector: ");
+                    for (size_t k = 0; k < state_size; ++k) {
+                        fprintf(stderr, "%zu, ", v[k]);
+                    }
+
+                    fprintf(stderr, "\n");
+
+                    fprintf(stderr, "isaval: ");
+                    for (size_t k = 0; k < state_size; ++k) {
+                        fprintf(stderr, "%i, ", is_available[k]);
+                    }
+
+                    fprintf(stderr, "\n");*/
+
+                    for (ssize_t k = state_size - 2; k >= 0; --k) {
+                        size_t oppo = rw_index - k - 1;
+
+                        if (v[k] != 0 && k != rw_index && !is_available[oppo]) {
+                            //fprintf(stderr, "should push all %zu\n", k);
+                            v[state_size - 1] += v[k];
+                            v[k] = 0;
+                        }
+                    }
+
+
+                    coal_graph_node_t *new_vertex;
+                    kingman_visit_vertex_rw(&new_vertex,
+                                         rw_index,
+                                         v, bst,
+                                         state_size,
+                                         vector_length,
+                                         vec_nmemb);
+
+                    v = old;
+                    free(old);
+
+                    graph_add_edge((graph_node_t*)*out, (graph_node_t*)new_vertex, t);
+                }
+            }
+        }
+
+        return 0;
+    }
+}
+
 static void print_graph_node(coal_graph_node_t *node, size_t vec_length, size_t indent) {
     weighted_edge_t *values = vector_get(node->edges);
 
@@ -517,6 +642,38 @@ int coal_gen_kingman_graph(coal_graph_node_t **graph, size_t n) {
     coal_graph_node_t *state_graph;
 
     kingman_visit_vertex(&state_graph, initial, BST, state_size, state_size,
+                         state_size);
+
+    vec_entry_t *start_state = (vec_entry_t*)calloc(state_size, sizeof(vec_entry_t));
+
+    coal_graph_node_t *start;
+    coal_graph_node_create(&start, start_state, start_state);
+    graph_add_edge((graph_node_t*) start,
+                   (graph_node_t*) state_graph, 1);
+
+    *graph = start;
+
+    return 0;
+}
+
+int coal_gen_kingman_graph_rw(coal_graph_node_t **graph, size_t n, size_t rw_index) {
+    size_t state_size = n+1;
+
+    vec_entry_t *initial = (vec_entry_t*)calloc(state_size, sizeof(vec_entry_t));
+    initial[0] = n;
+
+    vec_entry_t *mrca = (vec_entry_t*)calloc(state_size, sizeof(vec_entry_t));
+    mrca[state_size-1] = 1;
+
+    coal_graph_node_t *absorbing_vertex;
+    coal_graph_node_create(&absorbing_vertex, mrca, mrca);
+
+    avl_vec_node_t *BST;
+    avl_vec_node_create(&BST, mrca, absorbing_vertex, NULL);
+
+    coal_graph_node_t *state_graph;
+
+    kingman_visit_vertex_rw(&state_graph, rw_index, initial, BST, state_size, state_size,
                          state_size);
 
     vec_entry_t *start_state = (vec_entry_t*)calloc(state_size, sizeof(vec_entry_t));
@@ -2401,7 +2558,8 @@ int coal_label_topological_index(size_t *largest_index, coal_graph_node_t *graph
 
             child->data.value -= 1;
 
-            if (child->data.value == 0) {
+            if (child->data.value == 0 && !child->data.visited) {
+                child->data.visited = true;
                 queue_enqueue(queue, child);
             }
         }
