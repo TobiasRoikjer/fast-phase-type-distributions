@@ -263,7 +263,8 @@ static int kingman_visit_vertex_rw(coal_graph_node_t **out,
                     for (ssize_t k = state_size - 2; k >= 0; --k) {
                         size_t oppo = rw_index - k - 1;
 
-                        if (v[k] != 0 && k != rw_index && !is_available[oppo]) {
+                        if (k > rw_index ||
+                                (v[k] != 0 && k != rw_index && !is_available[oppo])) {
                             //fprintf(stderr, "should push all %zu\n", k);
                             v[state_size - 1] += v[k];
                             v[k] = 0;
@@ -280,7 +281,6 @@ static int kingman_visit_vertex_rw(coal_graph_node_t **out,
                                          vec_nmemb);
 
                     v = old;
-                    free(old);
 
                     graph_add_edge((graph_node_t*)*out, (graph_node_t*)new_vertex, t);
                 }
