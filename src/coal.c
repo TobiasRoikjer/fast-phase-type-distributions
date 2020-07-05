@@ -6,7 +6,18 @@
 #include <gsl/gsl_matrix_long_double.h>
 #include <gsl/gsl_matrix.h>
 #include <gsl/gsl_linalg.h>
+#include <gsl/gsl_vector_double.h>
 #include "coal.h"
+
+int gsl_vector_axpby(const double alpha, const gsl_vector * x, const double beta, gsl_vector * y) {
+    gsl_vector *clone = gsl_vector_alloc(x->size);
+    gsl_vector_memcpy(clone, x);
+    gsl_vector_scale(clone, alpha);
+    gsl_vector_add(y, clone);
+    gsl_vector_free(clone);
+
+    return 0;
+}
 
 typedef enum  {
   IM_VERTEX_TYPE_MIG,
@@ -1753,6 +1764,8 @@ void _reset_graph(coal_graph_node_t *node, size_t reset_int) {
     node->data.visited = false;
     node->data.visits = 0;
     node->data.pointer = NULL;
+    node->data.all_descendants_exp_sum = NULL;
+    node->data.all_vertex_exp = NULL;
 }
 
 void reset_graph(coal_graph_node_t *node) {
@@ -1845,8 +1858,6 @@ gsl_matrix_long_double * _coal_mph_im_expected(coal_graph_node_t *node, size_t n
     }
 
     gsl_matrix_long_double_free(scaled);
-
-    node->data.pointer = node->data.pointer;
 
     return node->data.pointer;
 }
@@ -1966,6 +1977,155 @@ long double coal_mph_cov(coal_graph_node_t *graph,
 
     return sum;
 }
+
+void coal_mph_cov_assign_vertex_all(coal_graph_node_t *node, size_t m) {
+    if (node->data.visited) {
+        return;
+    }
+
+    node->data.visited = true;
+
+    long double rate = 0;
+
+    weighted_edge_t *values = vector_get(node->edges);
+
+    for (size_t i = 0; i < vector_length(node->edges); i++) {
+        // Sum the rates
+        rate += values[i].weight;
+    }
+
+    if (vector_length(node->reverse_edges) == 0) {
+        // Starting vertex
+        node->data.prob = 1.0f;
+    } else {
+        node->data.prob = 0.0f;
+    }
+
+    weighted_edge_t *reverse_values = vector_get(node->reverse_edges);
+
+    for (size_t i = 0; i < vector_length(node->reverse_edges); i++) {
+        weighted_edge_t *parent = &(reverse_values[i]);
+        long double rate_parent = 0;
+
+        coal_mph_cov_assign_vertex_all((coal_graph_node_t*) parent->node, m);
+        weighted_edge_t *parent_values = vector_get(parent->node->edges);
+
+        for (size_t j = 0; j < vector_length(parent->node->edges); j++) {
+            // Sum the rates
+            rate_parent += parent_values[j].weight;
+        }
+
+        node->data.prob += reverse_values[i].weight/rate_parent * ((coal_graph_node_t*)(parent->node))->data.prob;
+    }
+
+
+    node->data.all_vertex_exp = gsl_vector_alloc(m);
+
+    for (size_t j = 0; j < m; ++j) {
+        if (rate != 0) {
+            gsl_vector_set(node->data.all_vertex_exp, j, (double) (node->data.prob * (((double)(node->data.state_vec)[j]) / rate)));
+        } else {
+            gsl_vector_set(node->data.all_vertex_exp, j, 0);
+        }
+    }
+}
+
+void coal_mph_cov_assign_desc_all(coal_graph_node_t *node, size_t m) {
+    if (node->data.visited) {
+        return;
+    }
+
+    node->data.visited = true;
+
+    long double rate = 0;
+
+    weighted_edge_t *values = vector_get(node->edges);
+
+    for (size_t i = 0; i < vector_length(node->edges); i++) {
+        // Sum the rates
+        rate += values[i].weight;
+    }
+
+    node->data.all_descendants_exp_sum = gsl_vector_alloc(m);
+    gsl_vector_set_zero(node->data.all_descendants_exp_sum);
+
+    for (size_t i = 0; i < vector_length(node->edges); i++) {
+        coal_mph_cov_assign_desc_all((coal_graph_node_t *) values[i].node, m);
+    }
+
+    for (size_t i = 0; i < vector_length(node->edges); i++) {
+        gsl_vector_axpby((const double) (values[i].weight / rate),
+                         ((coal_graph_node_t*)(values[i].node))->data.all_descendants_exp_sum,
+                         1, node->data.all_descendants_exp_sum);
+    }
+
+    gsl_vector *exp = gsl_vector_alloc(m);
+
+    for (size_t j = 0; j < m; ++j) {
+        if (rate != 0) {
+            gsl_vector_set(exp, j, (double) ((node->data.state_vec)[j] / rate));
+        } else {
+            gsl_vector_set(exp, j, 0);
+        }
+    }
+
+    gsl_vector_add(node->data.all_descendants_exp_sum, exp);
+
+    gsl_vector_free(exp);
+}
+
+double **cov;
+
+void _coal_mph_cov_all(coal_graph_node_t *node, size_t m) {
+    if (node->data.visited) {
+        return;
+    }
+
+    weighted_edge_t *values = vector_get(node->edges);
+
+    for (size_t i = 0; i < m; ++i) {
+        for (size_t j = 0; j < m; ++j) {
+            //print_vector(stderr, node->data.state_vec, m);
+            cov[i][j] += gsl_vector_get(node->data.all_descendants_exp_sum, i) *
+                    gsl_vector_get(node->data.all_vertex_exp, j);
+            cov[i][j] += gsl_vector_get(node->data.all_descendants_exp_sum, j) *
+                         gsl_vector_get(node->data.all_vertex_exp, i);
+        }
+    }
+
+    node->data.visited = true;
+
+    for (size_t i = 0; i < vector_length(node->edges); i++) {
+        _coal_mph_cov_all((coal_graph_node_t*) values[i].node, m);
+    }
+}
+
+double*** coal_mph_cov_all(coal_graph_node_t *graph, size_t m) {
+    coal_graph_node_t *abs = get_abs_vertex(graph);
+    coal_graph_reset(graph);
+    coal_mph_cov_assign_vertex_all(abs, m);
+    reset_graph_visited(graph);
+    coal_mph_cov_assign_desc_all(graph, m);
+
+    cov = calloc(m, sizeof(double*));
+
+    for (size_t i = 0; i < m; ++i) {
+        cov[i] = calloc(m, sizeof(double));
+    }
+
+    reset_graph_visited(graph);
+    _coal_mph_cov_all(graph, m);
+
+    for (size_t i = 0; i < m; ++i) {
+        for (size_t j = 0; j < m; ++j) {
+            cov[i][j] -= gsl_vector_get(graph->data.all_descendants_exp_sum, i) *
+                    gsl_vector_get(graph->data.all_descendants_exp_sum, j);
+        }
+    }
+
+    return &cov;
+}
+
 
 /*
  * Also ensures that the absorbing vertex has index 0

@@ -37,6 +37,8 @@ typedef struct {
     long double prob;
     long double vertex_exp;
     long double descendants_exp_sum;
+    gsl_vector *all_vertex_exp;
+    gsl_vector *all_descendants_exp_sum;
     bool visited;
     size_t visits;
     ssize_t vertex_index;
@@ -126,6 +128,7 @@ gsl_matrix_long_double * coal_mph_im_expected(coal_graph_node_t *graph, size_t n
 long double coal_mph_cov(coal_graph_node_t *graph,
                     size_t reward_index_1,
                     size_t reward_index_2);
+double*** coal_mph_cov_all(coal_graph_node_t *graph, size_t m);
 int coal_label_vertex_index(size_t *largest_index, coal_graph_node_t *graph);
 int coal_label_topological_index(size_t *largest_index, coal_graph_node_t *graph);
 size_t coal_get_edges(coal_graph_node_t *graph);
