@@ -14,10 +14,14 @@ int main(int argc, char **argv) {
         }
 
         for (size_t j = 0; j < n; j++) {
-            for (size_t i = j; i < n; i++) {
+            for (size_t i = 0; i <= j; i++) {
                 printf("cov,%zu,%zu,%zu,%f\n", n, j, i, (*cov)[j][i]);
             }
         }
+
+        fprintf(stderr, "Done %zu\n", n);
+
+        fflush(stdout);
     }
 
     return 0;

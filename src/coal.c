@@ -2084,7 +2084,7 @@ void _coal_mph_cov_all(coal_graph_node_t *node, size_t m) {
     weighted_edge_t *values = vector_get(node->edges);
 
     for (size_t i = 0; i < m; ++i) {
-        for (size_t j = 0; j < m; ++j) {
+        for (size_t j = 0; j <= i; ++j) {
             //print_vector(stderr, node->data.state_vec, m);
             cov[i][j] += gsl_vector_get(node->data.all_descendants_exp_sum, i) *
                     gsl_vector_get(node->data.all_vertex_exp, j);
@@ -2117,7 +2117,7 @@ double*** coal_mph_cov_all(coal_graph_node_t *graph, size_t m) {
     _coal_mph_cov_all(graph, m);
 
     for (size_t i = 0; i < m; ++i) {
-        for (size_t j = 0; j < m; ++j) {
+        for (size_t j = 0; j <= i; ++j) {
             cov[i][j] -= gsl_vector_get(graph->data.all_descendants_exp_sum, i) *
                     gsl_vector_get(graph->data.all_descendants_exp_sum, j);
         }
